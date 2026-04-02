@@ -1,0 +1,395 @@
+import { createHash } from 'crypto';
+import type Database from 'better-sqlite3';
+import type {
+  Observation,
+  Fact,
+  FactCategory,
+  FactSearchOptions,
+  FactSearchResult,
+  MemoryIndex,
+} from '../types.js';
+
+/**
+ * Noise patterns — observations that should NOT produce facts.
+ * These are routine tool calls with no knowledge value.
+ */
+const NOISE_PATTERNS: RegExp[] = [
+  /^Bash:\s*(ls|cd|pwd|echo|cat|head|tail|wc|which|whoami|date|clear)\b/i,
+  /^Bash:\s*git\s+(status|log|diff|branch|stash|fetch|pull)\b/i,
+  /^Bash:\s*npm\s+(install|ci|i)\b/i,
+  /^Bash:\s*node_modules/i,
+  /^Read:\s/i,
+  /^Glob:\s/i,
+  /^Grep:\s/i,
+  /^TodoRead/i,
+  /^TodoWrite/i,
+  // System/framework noise — not user-generated knowledge
+  /<task-notification>/i,
+  /<system-reminder>/i,
+  /<\/?[a-z-]+>/,                      // Generic XML/HTML tags (system messages)
+  /^Bash:\s*curl\s.*wantan-mem/i,      // Self-referential mem calls
+  /^Bash:\s*sleep\b/i,                 // Sleep commands
+  /^MCP:\s/i,                          // MCP tool calls (low signal)
+];
+
+/**
+ * Category detection rules — maps content patterns to fact categories and importance.
+ */
+interface CategoryRule {
+  pattern: RegExp;
+  category: FactCategory;
+  importance: number;
+}
+
+const CATEGORY_RULES: CategoryRule[] = [
+  // Decisions (importance 10)
+  { pattern: /\b(decided|chose|committed to|will use|going with|selected|picked)\b/i, category: 'decision', importance: 10 },
+  { pattern: /\b(architecture|design decision|tech stack|chose .+ over)\b/i, category: 'decision', importance: 10 },
+
+  // Errors and security (importance 8)
+  // Note: "fix" alone is too greedy — it matches normal conversation ("fix the layout", "fix typo").
+  // Only match "fix" when paired with error-context words, or match standalone error indicators.
+  { pattern: /\b(error|bug|crash|exception|failure|broken)\b/i, category: 'error', importance: 8 },
+  { pattern: /\bfix(ed|ing)?\s+(bug|error|crash|failure|issue|regression|vulnerability)\b/i, category: 'error', importance: 8 },
+  { pattern: /\b(CVE|vulnerability|security|auth(entication|orization)?\s+(issue|bug|flaw))\b/i, category: 'security', importance: 8 },
+  { pattern: /\b(incident|outage|downtime|P[0-3])\b/i, category: 'error', importance: 8 },
+
+  // Blockers (importance 7)
+  { pattern: /\b(blocked|blocker|stuck|can't proceed|waiting on|dependency issue)\b/i, category: 'blocker', importance: 7 },
+
+  // Architecture (importance 6)
+  { pattern: /^Write:\s/i, category: 'architecture', importance: 6 },
+  { pattern: /^Edit:\s/i, category: 'architecture', importance: 6 },
+  { pattern: /\b(implement(ed|ing)?|creat(ed|ing)|built|added|refactor(ed|ing)?)\b/i, category: 'architecture', importance: 6 },
+  { pattern: /\b(schema|migration|database|model|endpoint|route|component|module)\b/i, category: 'architecture', importance: 6 },
+  { pattern: /\b(test(s|ed|ing)?|spec|coverage)\b/i, category: 'architecture', importance: 6 },
+  { pattern: /\b(deploy(ed|ing|ment)?|release|ship(ped|ping)?|CI\/CD|pipeline)\b/i, category: 'architecture', importance: 6 },
+
+  // Patterns and preferences (importance 5)
+  { pattern: /\b(pattern|convention|standard|best practice|approach|methodology)\b/i, category: 'pattern', importance: 5 },
+  { pattern: /\b(prefer(s|red|ence)?|always use|never use|avoid|style)\b/i, category: 'preference', importance: 5 },
+
+  // Research and learning (importance 4)
+  { pattern: /^WebSearch:\s/i, category: 'learned', importance: 4 },
+  { pattern: /^Agent\s*\(/i, category: 'learned', importance: 4 },
+  { pattern: /\b(research(ed|ing)?|investigat(ed|ing)|explor(ed|ing)|evaluat(ed|ing)|compar(ed|ing))\b/i, category: 'learned', importance: 4 },
+  { pattern: /\b(learn(ed|ing)?|discover(ed|ing)?|found that|turns out|TIL)\b/i, category: 'learned', importance: 4 },
+];
+
+/**
+ * FactStore — Compress-on-write fact extraction from observations.
+ *
+ * Design principles:
+ * - SimpleMem pattern: extract facts immediately on write, not on read
+ * - memsearch pattern: SHA256 content hashing for deduplication
+ * - Memori pattern: importance scoring by category
+ * - MemOS pattern: access-weighted ranking for retrieval
+ * - 59-compaction pattern: L1 always-loaded summary per project
+ */
+export class FactStore {
+  constructor(private db: Database.Database) {}
+
+  /**
+   * Extract and store facts from an observation.
+   * This is the core "compress on write" operation.
+   * Returns extracted facts (empty array if observation is noise).
+   */
+  extractAndStore(observation: Observation): Fact[] {
+    const content = observation.content;
+
+    // Skip noise — routine tool calls with no knowledge value
+    if (this.isNoise(content)) {
+      return [];
+    }
+
+    // Detect category and importance
+    const { category, importance } = this.classify(content);
+
+    // Build the distilled fact content
+    const factContent = this.distill(content, observation.type);
+
+    // Deduplicate via content hash
+    const hash = this.computeHash(factContent);
+    if (this.isDuplicate(hash)) {
+      return [];
+    }
+
+    // Detect tags from content
+    const tags = this.extractTags(content);
+
+    // Insert the fact
+    const stmt = this.db.prepare(
+      `INSERT INTO facts (source_observation_id, category, content, importance, project, agent, tags, content_hash)
+       VALUES (@source_observation_id, @category, @content, @importance, @project, @agent, @tags, @content_hash)
+       RETURNING *`
+    );
+
+    const fact = stmt.get({
+      source_observation_id: observation.id,
+      category,
+      content: factContent,
+      importance,
+      project: observation.project,
+      agent: observation.agent,
+      tags: tags.length > 0 ? JSON.stringify(tags) : null,
+      content_hash: hash,
+    }) as Fact;
+
+    return [fact];
+  }
+
+  /**
+   * Search facts using FTS5 full-text search.
+   */
+  search(query: string, options: FactSearchOptions = {}): FactSearchResult[] {
+    const { project, category, minImportance, limit = 20 } = options;
+
+    // Wildcard query — bypass FTS, scan with filters
+    if (query === '*') {
+      let sql = `
+        SELECT id, category, content, importance, project, agent, tags, created_at, access_count, 0 as rank
+        FROM facts
+        WHERE 1=1
+      `;
+      const params: Record<string, unknown> = { limit };
+
+      if (project) {
+        sql += ' AND project = @project';
+        params.project = project;
+      }
+      if (category) {
+        sql += ' AND category = @category';
+        params.category = category;
+      }
+      if (minImportance) {
+        sql += ' AND importance >= @minImportance';
+        params.minImportance = minImportance;
+      }
+
+      sql += ' ORDER BY importance DESC, created_at DESC LIMIT @limit';
+      return this.db.prepare(sql).all(params) as FactSearchResult[];
+    }
+
+    // FTS query
+    let sql = `
+      SELECT
+        f.id, f.category, f.content, f.importance, f.project, f.agent, f.tags,
+        f.created_at, f.access_count, fts.rank
+      FROM facts_fts fts
+      JOIN facts f ON f.id = fts.rowid
+      WHERE facts_fts MATCH @query
+    `;
+    const params: Record<string, unknown> = { query, limit };
+
+    if (project) {
+      sql += ' AND f.project = @project';
+      params.project = project;
+    }
+    if (category) {
+      sql += ' AND f.category = @category';
+      params.category = category;
+    }
+    if (minImportance) {
+      sql += ' AND f.importance >= @minImportance';
+      params.minImportance = minImportance;
+    }
+
+    sql += ' ORDER BY f.importance DESC, fts.rank LIMIT @limit';
+    return this.db.prepare(sql).all(params) as FactSearchResult[];
+  }
+
+  /**
+   * Get the L1 memory index for a project (~500 tokens, always loaded).
+   */
+  getIndex(project: string): MemoryIndex | undefined {
+    return this.db
+      .prepare('SELECT * FROM memory_index WHERE project = ?')
+      .get(project) as MemoryIndex | undefined;
+  }
+
+  /**
+   * Rebuild the L1 memory index for a project.
+   * Selects top facts by (importance * log(access_count + 1)) and generates a summary.
+   */
+  rebuildIndex(project: string): MemoryIndex {
+    // Count totals
+    const totalFacts = (
+      this.db.prepare('SELECT COUNT(*) as count FROM facts WHERE project = ?').get(project) as { count: number }
+    ).count;
+    const totalObservations = (
+      this.db.prepare('SELECT COUNT(*) as count FROM observations WHERE project = ?').get(project) as { count: number }
+    ).count;
+
+    // Select top 10 facts by weighted score: importance * ln(access_count + 2)
+    // Using ln(access_count + 2) so even zero-access facts get a base multiplier of ln(2) ≈ 0.69
+    const topFacts = this.db
+      .prepare(
+        `SELECT id, category, content, importance, access_count,
+                (importance * 1.0) * (1.0 + 0.5 * CASE WHEN access_count > 0 THEN access_count ELSE 0 END) as score
+         FROM facts
+         WHERE project = ?
+         ORDER BY score DESC
+         LIMIT 10`
+      )
+      .all(project) as Array<{ id: number; category: string; content: string; importance: number; access_count: number; score: number }>;
+
+    // Generate summary from top facts
+    const summaryParts: string[] = [];
+    const categoryGroups = new Map<string, string[]>();
+
+    for (const fact of topFacts) {
+      if (!categoryGroups.has(fact.category)) {
+        categoryGroups.set(fact.category, []);
+      }
+      categoryGroups.get(fact.category)!.push(fact.content);
+    }
+
+    for (const [cat, facts] of categoryGroups) {
+      summaryParts.push(`${cat}: ${facts.join('; ')}`);
+    }
+
+    const summary = summaryParts.length > 0
+      ? summaryParts.join('\n')
+      : `No facts recorded yet for ${project}.`;
+
+    const keyFactsJson = JSON.stringify(
+      topFacts.map(f => ({ id: f.id, category: f.category, content: f.content, importance: f.importance }))
+    );
+
+    // Upsert memory index
+    this.db
+      .prepare(
+        `INSERT INTO memory_index (project, summary, key_facts, last_updated, total_facts, total_observations)
+         VALUES (@project, @summary, @key_facts, datetime('now'), @total_facts, @total_observations)
+         ON CONFLICT(project) DO UPDATE SET
+           summary = @summary,
+           key_facts = @key_facts,
+           last_updated = datetime('now'),
+           total_facts = @total_facts,
+           total_observations = @total_observations`
+      )
+      .run({
+        project,
+        summary,
+        key_facts: keyFactsJson,
+        total_facts: totalFacts,
+        total_observations: totalObservations,
+      });
+
+    return this.getIndex(project)!;
+  }
+
+  /**
+   * Record an access to a fact (bumps access_count, updates last_accessed_at).
+   * Used for importance decay/boost via the MemOS pattern.
+   */
+  recordAccess(factId: number): void {
+    this.db
+      .prepare(
+        `UPDATE facts SET
+           access_count = access_count + 1,
+           last_accessed_at = datetime('now')
+         WHERE id = ?`
+      )
+      .run(factId);
+  }
+
+  /**
+   * Check if a fact with the given content hash already exists.
+   */
+  isDuplicate(hash: string): boolean {
+    const row = this.db
+      .prepare('SELECT id FROM facts WHERE content_hash = ?')
+      .get(hash);
+    return row !== undefined;
+  }
+
+  /**
+   * Get category counts for a project.
+   */
+  getCategoryCounts(project?: string): Array<{ category: string; count: number }> {
+    if (project) {
+      return this.db
+        .prepare('SELECT category, COUNT(*) as count FROM facts WHERE project = ? GROUP BY category ORDER BY count DESC')
+        .all(project) as Array<{ category: string; count: number }>;
+    }
+    return this.db
+      .prepare('SELECT category, COUNT(*) as count FROM facts GROUP BY category ORDER BY count DESC')
+      .all() as Array<{ category: string; count: number }>;
+  }
+
+  // --- Private helpers ---
+
+  /**
+   * Check if an observation is noise (routine tool calls with no knowledge value).
+   */
+  private isNoise(content: string): boolean {
+    return NOISE_PATTERNS.some(p => p.test(content));
+  }
+
+  /**
+   * Classify content into a category and importance score.
+   */
+  private classify(content: string): { category: FactCategory; importance: number } {
+    for (const rule of CATEGORY_RULES) {
+      if (rule.pattern.test(content)) {
+        return { category: rule.category, importance: rule.importance };
+      }
+    }
+    // Default: learned, importance 3
+    return { category: 'learned', importance: 3 };
+  }
+
+  /**
+   * Distill raw observation content into a clean fact.
+   * Strips prefixes, truncates, and normalizes.
+   */
+  private distill(content: string, observationType: string): string {
+    let distilled = content;
+
+    // Strip common tool prefixes to get the core content
+    distilled = distilled.replace(/^(Write|Edit|Bash|WebSearch|Agent\s*\([^)]*\)):\s*/i, '');
+
+    // Strip system noise that leaked through
+    distilled = distilled.replace(/<[^>]+>/g, '');           // XML/HTML tags
+    distilled = distilled.replace(/toolu_[a-zA-Z0-9]+/g, ''); // Tool IDs
+    distilled = distilled.replace(/\b[a-f0-9]{16,}\b/g, '');  // Long hex hashes (task IDs, etc.)
+
+    // Truncate very long content to keep facts concise
+    if (distilled.length > 500) {
+      distilled = distilled.substring(0, 497) + '...';
+    }
+
+    // Clean up whitespace
+    distilled = distilled.replace(/\s+/g, ' ').trim();
+
+    return distilled;
+  }
+
+  /**
+   * Compute SHA256 hash for deduplication.
+   */
+  private computeHash(content: string): string {
+    return createHash('sha256').update(content).digest('hex');
+  }
+
+  /**
+   * Extract tags from content based on signal words.
+   */
+  private extractTags(content: string): string[] {
+    const tags: string[] = [];
+    const lower = content.toLowerCase();
+
+    if (/\b(auth|login|jwt|session|oauth|token)\b/.test(lower)) tags.push('auth');
+    if (/\b(database|db|schema|migration|sql|prisma|sqlite)\b/.test(lower)) tags.push('database');
+    if (/\b(api|endpoint|route|rest|graphql)\b/.test(lower)) tags.push('api');
+    if (/\b(test|spec|coverage|vitest|jest|cypress)\b/.test(lower)) tags.push('testing');
+    if (/\b(deploy|ci|cd|pipeline|docker|k8s|kubernetes)\b/.test(lower)) tags.push('devops');
+    if (/\b(security|cve|vulnerability|xss|csrf|injection)\b/.test(lower)) tags.push('security');
+    if (/\b(performance|slow|latency|cache|optimize|benchmark)\b/.test(lower)) tags.push('performance');
+    if (/\b(ui|ux|component|css|style|layout|responsive)\b/.test(lower)) tags.push('frontend');
+    if (/\b(error|bug|crash|exception|failure)\b/.test(lower)) tags.push('error');
+
+    return tags;
+  }
+}

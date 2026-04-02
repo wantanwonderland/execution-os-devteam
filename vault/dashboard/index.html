@@ -1,0 +1,1996 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dev Performance Hub</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    :root {
+      --bg: #0a0b10;
+      --surface: #13151c;
+      --surface-2: #1e222d;
+      --border: #262b3a;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --signal-green: #10b981;
+      --turbo-blue: #3b82f6;
+      --alert-red: #ef4444;
+      --warning-yellow: #f59e0b;
+      --glow-green: rgba(16, 185, 129, 0.2);
+      --glow-blue: rgba(59, 130, 246, 0.2);
+      --glow-red: rgba(239, 68, 68, 0.2);
+      --glow-yellow: rgba(245, 158, 11, 0.2);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    /* --- Layout --- */
+    .cockpit {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      height: 100vh;
+    }
+
+    /* --- Sidebar --- */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 32px;
+      padding-left: 8px;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: var(--turbo-blue);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      color: white;
+      font-size: 20px;
+      box-shadow: 0 0 20px var(--glow-blue);
+      flex-shrink: 0;
+    }
+
+    .brand-text {
+      font-size: 18px;
+      font-weight: 800;
+      color: white;
+      letter-spacing: 0.5px;
+      line-height: 1.2;
+    }
+
+    .brand-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+
+    .nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .nav-item:hover {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
+    .nav-item.active {
+      background: var(--surface-2);
+      border-color: var(--border);
+      color: white;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+
+    .nav-icon {
+      width: 20px;
+      text-align: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .sidebar-footer-text {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* --- Main Content --- */
+    .main {
+      padding: 32px 40px;
+      overflow-y: auto;
+      background:
+        radial-gradient(circle at top right, rgba(59,130,246,0.04), transparent 50%),
+        radial-gradient(circle at bottom left, rgba(16,185,129,0.04), transparent 50%);
+    }
+
+    .view {
+      display: none;
+      animation: fade-in 0.3s ease-out;
+    }
+
+    .view.active { display: block; }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* --- Typography --- */
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 15px;
+      margin-bottom: 32px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 16px;
+      margin-top: 32px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title:first-child { margin-top: 0; }
+
+    .section-title::before {
+      content: "";
+      display: block;
+      width: 4px;
+      height: 14px;
+      background: var(--turbo-blue);
+      border-radius: 2px;
+    }
+
+    /* --- Grids --- */
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; }
+
+    /* --- HUD Cards --- */
+    .hud-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hud-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .hud-value {
+      font-size: 42px;
+      font-weight: 800;
+      line-height: 1;
+      color: white;
+      margin-bottom: 4px;
+    }
+
+    .hud-value.small { font-size: 32px; }
+
+    .hud-subtext {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .hud-card .accent-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+
+    .accent-green { background: var(--signal-green); }
+    .accent-blue { background: var(--turbo-blue); }
+    .accent-red { background: var(--alert-red); }
+    .accent-yellow { background: var(--warning-yellow); }
+
+    /* --- Gauge --- */
+    .gauge-container {
+      width: 100%;
+      height: 8px;
+      background: var(--bg);
+      border-radius: 4px;
+      margin-top: 16px;
+      overflow: hidden;
+    }
+
+    .gauge-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .gauge-green { background: linear-gradient(90deg, #059669, var(--signal-green)); box-shadow: 0 0 10px var(--glow-green); }
+    .gauge-blue { background: linear-gradient(90deg, #2563eb, var(--turbo-blue)); box-shadow: 0 0 10px var(--glow-blue); }
+    .gauge-red { background: linear-gradient(90deg, #dc2626, var(--alert-red)); box-shadow: 0 0 10px var(--glow-red); }
+    .gauge-yellow { background: linear-gradient(90deg, #d97706, var(--warning-yellow)); box-shadow: 0 0 10px var(--glow-yellow); }
+
+    /* --- Alert Banners --- */
+    .alert-banner {
+      background: var(--glow-red);
+      border: 1px solid var(--alert-red);
+      color: #fca5a5;
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 500;
+    }
+
+    .nominal-banner {
+      background: var(--glow-green);
+      border: 1px solid var(--signal-green);
+      color: #6ee7b7;
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 500;
+    }
+
+    /* --- Tables --- */
+    .table-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-top: 16px;
+    }
+
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+
+    th {
+      padding: 14px 20px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      font-weight: 600;
+    }
+
+    td {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface-2); }
+
+    /* --- Badges --- */
+    .badge {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      display: inline-block;
+    }
+
+    .badge-green { background: rgba(16,185,129,0.15); color: var(--signal-green); }
+    .badge-red { background: rgba(239,68,68,0.15); color: var(--alert-red); }
+    .badge-yellow { background: rgba(245,158,11,0.15); color: var(--warning-yellow); }
+    .badge-blue { background: rgba(59,130,246,0.15); color: var(--turbo-blue); }
+    .badge-neutral { background: rgba(148,163,184,0.15); color: var(--text-muted); }
+
+    /* --- Chart Containers --- */
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .chart-card canvas {
+      max-height: 320px;
+    }
+
+    .chart-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    /* --- Empty State --- */
+    .empty-state {
+      padding: 48px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 14px;
+    }
+
+    /* --- Loading State --- */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .loading::after {
+      content: "";
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--turbo-blue);
+      border-radius: 50%;
+      margin-left: 12px;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* --- Responsive --- */
+    @media (max-width: 1200px) {
+      .grid-5 { grid-template-columns: repeat(3, 1fr); }
+      .grid-4 { grid-template-columns: repeat(2, 1fr); }
+      .grid-3 { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 900px) {
+      .cockpit { grid-template-columns: 1fr; }
+      .sidebar {
+        position: fixed;
+        left: -280px;
+        top: 0;
+        bottom: 0;
+        width: 280px;
+        z-index: 100;
+        transition: left 0.3s;
+      }
+      .sidebar.open { left: 0; }
+      .mobile-header {
+        display: flex !important;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 20px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+      .mobile-toggle {
+        background: none;
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      .mobile-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.6);
+        z-index: 99;
+      }
+      .sidebar.open ~ .mobile-overlay { display: block; }
+      .main { padding: 20px; }
+      .grid-5, .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+      .hud-value { font-size: 32px; }
+    }
+
+    .mobile-header { display: none; }
+
+    /* --- Memory View --- */
+    .mem-search-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .mem-input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .mem-input:focus { border-color: var(--turbo-blue); }
+
+    .mem-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .mem-btn {
+      background: var(--turbo-blue);
+      border: none;
+      color: white;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .mem-btn:hover { opacity: 0.85; }
+    .mem-btn.secondary { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); }
+
+    .mem-index-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 8px;
+    }
+
+    .mem-index-summary {
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+
+    .mem-key-fact {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .mem-key-fact:last-child { border-bottom: none; }
+
+    .fact-imp {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .fact-imp-10 { background: rgba(16,185,129,0.2); color: var(--signal-green); }
+    .fact-imp-8  { background: rgba(239,68,68,0.2); color: var(--alert-red); }
+    .fact-imp-6  { background: rgba(59,130,246,0.2); color: var(--turbo-blue); }
+    .fact-imp-low { background: rgba(148,163,184,0.1); color: var(--text-muted); }
+
+    .mem-worker-offline {
+      background: var(--glow-red);
+      border: 1px solid var(--alert-red);
+      color: #fca5a5;
+      padding: 14px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+
+    .mem-worker-online {
+      background: var(--glow-green);
+      border: 1px solid var(--signal-green);
+      color: #6ee7b7;
+      padding: 14px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="mobile-header">
+  <button class="mobile-toggle" onclick="toggleSidebar()">&#9776;</button>
+  <span style="font-weight:700; font-size:16px;">Dev Performance Hub</span>
+</div>
+
+<div class="cockpit">
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-icon">D</div>
+      <div>
+        <div class="brand-text">Dev Hub</div>
+        <div class="brand-sub">Performance Dashboard</div>
+      </div>
+    </div>
+
+    <div class="nav-list">
+      <div class="nav-item active" data-view="overview" onclick="switchView('overview')">
+        <span class="nav-icon">&#9670;</span> Overview
+      </div>
+      <div class="nav-item" data-view="sprint" onclick="switchView('sprint')">
+        <span class="nav-icon">&#9654;</span> Sprint
+      </div>
+      <div class="nav-item" data-view="prs" onclick="switchView('prs')">
+        <span class="nav-icon">&#10697;</span> Pull Requests
+      </div>
+      <div class="nav-item" data-view="deploy" onclick="switchView('deploy')">
+        <span class="nav-icon">&#9650;</span> Deployments
+      </div>
+      <div class="nav-item" data-view="testing" onclick="switchView('testing')">
+        <span class="nav-icon">&#10003;</span> Testing
+      </div>
+      <div class="nav-item" data-view="security" onclick="switchView('security')">
+        <span class="nav-icon">&#9711;</span> Security
+      </div>
+      <div class="nav-item" data-view="system" onclick="switchView('system')">
+        <span class="nav-icon">&#9881;</span> System Health
+      </div>
+      <div class="nav-item" data-view="memory" onclick="switchView('memory'); initMemoryView()">
+        <span class="nav-icon">&#128190;</span> Memory
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-text">
+        Last updated<br>
+        <span id="last-updated">--</span>
+      </div>
+    </div>
+  </nav>
+
+  <div class="mobile-overlay" onclick="toggleSidebar()"></div>
+
+  <!-- Main Content -->
+  <div class="main" id="main-content">
+
+    <!-- Loading State -->
+    <div id="loading-state" class="loading">Loading database</div>
+
+    <!-- Error State -->
+    <div id="error-state" style="display:none;">
+      <h1>Dev Performance Hub</h1>
+      <p class="subtitle">Could not load database</p>
+      <div class="alert-banner">
+        &#9888; Unable to load <code>data/company.db</code>. Run <code>sqlite3 data/company.db &lt; data/schema.sql</code> to initialize.
+      </div>
+    </div>
+
+    <!-- ========== VIEW: Overview ========== -->
+    <div class="view" id="view-overview">
+      <h1>Overview</h1>
+      <p class="subtitle">Key metrics at a glance</p>
+
+      <div id="overview-alert"></div>
+
+      <div class="grid-5" id="overview-cards">
+        <div class="hud-card">
+          <div class="accent-bar accent-blue"></div>
+          <div class="hud-label">Sprint Velocity</div>
+          <div class="hud-value" id="kpi-velocity">--</div>
+          <div class="hud-subtext" id="kpi-velocity-sub">-- committed</div>
+          <div class="gauge-container"><div class="gauge-fill gauge-blue" id="kpi-velocity-gauge" style="width:0%"></div></div>
+        </div>
+        <div class="hud-card">
+          <div class="accent-bar accent-yellow"></div>
+          <div class="hud-label">Open PRs</div>
+          <div class="hud-value" id="kpi-open-prs">--</div>
+          <div class="hud-subtext">awaiting review</div>
+        </div>
+        <div class="hud-card">
+          <div class="accent-bar accent-green"></div>
+          <div class="hud-label">Deploys (7d)</div>
+          <div class="hud-value" id="kpi-deploys">--</div>
+          <div class="hud-subtext">across all environments</div>
+        </div>
+        <div class="hud-card">
+          <div class="accent-bar accent-green"></div>
+          <div class="hud-label">Test Pass Rate</div>
+          <div class="hud-value" id="kpi-test-pass">--</div>
+          <div class="hud-subtext" id="kpi-test-pass-sub">latest run</div>
+          <div class="gauge-container"><div class="gauge-fill gauge-green" id="kpi-test-gauge" style="width:0%"></div></div>
+        </div>
+        <div class="hud-card">
+          <div class="accent-bar accent-red"></div>
+          <div class="hud-label">Active Incidents</div>
+          <div class="hud-value" id="kpi-incidents">--</div>
+          <div class="hud-subtext">unresolved</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== VIEW: Sprint ========== -->
+    <div class="view" id="view-sprint">
+      <h1>Sprint</h1>
+      <p class="subtitle">Velocity trends and sprint performance</p>
+
+      <div class="grid-2">
+        <div class="chart-card">
+          <div class="chart-title">Velocity Trend (Last 6 Sprints)</div>
+          <canvas id="chart-velocity"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Sprint Completion Rate</div>
+          <canvas id="chart-completion-rate"></canvas>
+        </div>
+      </div>
+
+      <div class="section-title">Current Sprint by Squad</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Squad</th>
+              <th>Sprint</th>
+              <th>Committed</th>
+              <th>Completed</th>
+              <th>Stories</th>
+              <th>Completion %</th>
+            </tr>
+          </thead>
+          <tbody id="sprint-table-body">
+            <tr><td colspan="6" class="empty-state">No data</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ========== VIEW: Pull Requests ========== -->
+    <div class="view" id="view-prs">
+      <h1>Pull Requests</h1>
+      <p class="subtitle">PR velocity, review SLA, and open queue</p>
+
+      <div class="grid-3">
+        <div class="chart-card" style="grid-column: span 2;">
+          <div class="chart-title">PR Velocity (Last 4 Weeks)</div>
+          <canvas id="chart-pr-velocity"></canvas>
+        </div>
+        <div class="hud-card">
+          <div class="accent-bar accent-green"></div>
+          <div class="hud-label">Review SLA</div>
+          <div class="hud-value" id="pr-sla-pct">--</div>
+          <div class="hud-subtext">reviewed within 24h</div>
+          <div class="gauge-container"><div class="gauge-fill gauge-green" id="pr-sla-gauge" style="width:0%"></div></div>
+          <div class="hud-subtext" id="pr-sla-detail" style="margin-top:12px;">-- / -- merged PRs</div>
+        </div>
+      </div>
+
+      <div class="section-title">Open Pull Requests</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Repo</th>
+              <th>PR</th>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Opened</th>
+              <th>Age</th>
+              <th>Files</th>
+            </tr>
+          </thead>
+          <tbody id="open-prs-body">
+            <tr><td colspan="7" class="empty-state">No open PRs</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ========== VIEW: Deployments ========== -->
+    <div class="view" id="view-deploy">
+      <h1>Deployments</h1>
+      <p class="subtitle">Deploy frequency and reliability</p>
+
+      <div class="grid-3">
+        <div class="chart-card" style="grid-column: span 2;">
+          <div class="chart-title">Deploy Frequency by Environment</div>
+          <canvas id="chart-deploy-freq"></canvas>
+        </div>
+        <div class="hud-card">
+          <div class="accent-bar accent-blue"></div>
+          <div class="hud-label">Avg MTTR</div>
+          <div class="hud-value small" id="deploy-mttr">--</div>
+          <div class="hud-subtext">mean time to recover</div>
+        </div>
+      </div>
+
+      <div class="section-title">Recent Deployments</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Repo</th>
+              <th>Environment</th>
+              <th>Version</th>
+              <th>Deployed By</th>
+              <th>Deployed At</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="deploy-table-body">
+            <tr><td colspan="6" class="empty-state">No data</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ========== VIEW: Testing ========== -->
+    <div class="view" id="view-testing">
+      <h1>Testing</h1>
+      <p class="subtitle">Test health, coverage trends, and latest runs</p>
+
+      <div class="grid-2">
+        <div class="chart-card">
+          <div class="chart-title">Test Health by Type (Last 7 Days)</div>
+          <canvas id="chart-test-health"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Unit Test Coverage Trend</div>
+          <canvas id="chart-coverage-trend"></canvas>
+        </div>
+      </div>
+
+      <div class="section-title">Latest Test Runs</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Repo</th>
+              <th>Branch</th>
+              <th>Type</th>
+              <th>Passed</th>
+              <th>Failed</th>
+              <th>Skipped</th>
+              <th>Coverage</th>
+              <th>Duration</th>
+              <th>Run At</th>
+            </tr>
+          </thead>
+          <tbody id="test-table-body">
+            <tr><td colspan="9" class="empty-state">No data</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ========== VIEW: Security ========== -->
+    <div class="view" id="view-security">
+      <h1>Security</h1>
+      <p class="subtitle">Security posture, findings, and tech debt</p>
+
+      <div class="grid-3">
+        <div class="chart-card">
+          <div class="chart-title">Security Posture</div>
+          <canvas id="chart-security-donut"></canvas>
+        </div>
+        <div class="hud-card" style="grid-column: span 2;">
+          <div class="hud-label">Tech Debt (Unresolved)</div>
+          <div id="tech-debt-cards" class="grid-4" style="margin-top:12px;"></div>
+        </div>
+      </div>
+
+      <div class="section-title">Findings by Repository</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Repo</th>
+              <th>Scan Type</th>
+              <th>Critical</th>
+              <th>High</th>
+              <th>Medium</th>
+              <th>Low</th>
+              <th>Scanned At</th>
+            </tr>
+          </thead>
+          <tbody id="security-table-body">
+            <tr><td colspan="7" class="empty-state">No data</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ========== VIEW: System Health ========== -->
+    <div class="view" id="view-system">
+      <h1>System Health</h1>
+      <p class="subtitle">Agent dispatch frequency and token spend</p>
+
+      <div class="grid-2">
+        <div class="chart-card">
+          <div class="chart-title">Agent Dispatches (Last 7 Days)</div>
+          <canvas id="chart-agent-dispatch"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Token Spend by Agent</div>
+          <canvas id="chart-token-spend"></canvas>
+        </div>
+      </div>
+
+      <div class="section-title">Recent Agent Dispatches</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th>Task</th>
+              <th>Model</th>
+              <th>Tokens In</th>
+              <th>Tokens Out</th>
+              <th>Duration</th>
+              <th>Project</th>
+              <th>Dispatched At</th>
+            </tr>
+          </thead>
+          <tbody id="agent-table-body">
+            <tr><td colspan="8" class="empty-state">No data</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ========== VIEW: Memory ========== -->
+    <div class="view" id="view-memory">
+      <h1>Memory</h1>
+      <p class="subtitle">wantan-mem — cross-session knowledge base</p>
+
+      <div id="mem-worker-banner"></div>
+
+      <!-- Stats -->
+      <div class="grid-4" id="mem-stats-grid">
+        <div class="hud-card">
+          <div class="accent-bar accent-blue"></div>
+          <div class="hud-label">Observations</div>
+          <div class="hud-value small" id="mem-stat-obs">--</div>
+          <div class="hud-subtext">total captured</div>
+        </div>
+        <div class="hud-card">
+          <div class="accent-bar accent-green"></div>
+          <div class="hud-label">Facts</div>
+          <div class="hud-value small" id="mem-stat-facts">--</div>
+          <div class="hud-subtext">distilled knowledge</div>
+        </div>
+        <div class="hud-card">
+          <div class="accent-bar accent-yellow"></div>
+          <div class="hud-label">Sessions</div>
+          <div class="hud-value small" id="mem-stat-sessions">--</div>
+          <div class="hud-subtext">all time</div>
+        </div>
+        <div class="hud-card">
+          <div class="accent-bar accent-blue"></div>
+          <div class="hud-label">DB Size</div>
+          <div class="hud-value small" id="mem-stat-size">--</div>
+          <div class="hud-subtext">on disk</div>
+        </div>
+      </div>
+
+      <!-- Memory Index -->
+      <div class="section-title">Memory Index</div>
+      <div class="mem-search-bar">
+        <select class="mem-select" id="mem-project-select" onchange="loadMemIndex()">
+          <option value="">All Projects</option>
+        </select>
+        <button class="mem-btn secondary" onclick="initMemoryView()">&#8635; Refresh</button>
+      </div>
+      <div class="mem-index-card" id="mem-index-card">
+        <div class="empty-state">Select a project to view its memory index</div>
+      </div>
+
+      <!-- Category Breakdown -->
+      <div class="section-title">Fact Categories</div>
+      <div class="grid-4" id="mem-category-grid">
+        <div class="empty-state" style="grid-column:span 4;">Loading...</div>
+      </div>
+
+      <!-- Fact Search -->
+      <div class="section-title">Search Facts</div>
+      <div class="mem-search-bar">
+        <input class="mem-input" type="text" id="mem-search-input" placeholder="Search facts... (e.g. docker, auth, deploy)" onkeydown="if(event.key==='Enter') searchFacts()">
+        <select class="mem-select" id="mem-cat-filter">
+          <option value="">All categories</option>
+          <option value="decision">decision</option>
+          <option value="architecture">architecture</option>
+          <option value="error">error</option>
+          <option value="security">security</option>
+          <option value="pattern">pattern</option>
+          <option value="preference">preference</option>
+          <option value="learned">learned</option>
+          <option value="blocker">blocker</option>
+        </select>
+        <button class="mem-btn" onclick="searchFacts()">Search</button>
+      </div>
+      <div class="table-container" id="mem-facts-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Imp</th>
+              <th>Content</th>
+              <th>Project</th>
+              <th>Agent</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="mem-facts-body">
+            <tr><td colspan="6" class="empty-state">Search to see facts</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Recent Observations -->
+      <div class="section-title">Recent Observations</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Agent</th>
+              <th>Content</th>
+              <th>Project</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="mem-recent-body">
+            <tr><td colspan="5" class="empty-state">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /cockpit -->
+
+<script>
+// ============================================================
+// State
+// ============================================================
+let db = null;
+let charts = {};
+let refreshInterval = null;
+
+// ============================================================
+// Database
+// ============================================================
+async function initDB() {
+  try {
+    const sqlPromise = initSqlJs({
+      locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+    });
+    const dataPromise = fetch('../data/company.db').then(r => {
+      if (!r.ok) throw new Error('DB fetch failed: ' + r.status);
+      return r.arrayBuffer();
+    });
+
+    const [SQL, buf] = await Promise.all([sqlPromise, dataPromise]);
+    db = new SQL.Database(new Uint8Array(buf));
+
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('view-overview').classList.add('active');
+    loadAllViews();
+    updateTimestamp();
+
+    // Auto-refresh every 60 seconds
+    refreshInterval = setInterval(() => {
+      reloadDB();
+    }, 60000);
+
+  } catch (err) {
+    console.error('DB init error:', err);
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('error-state').style.display = 'block';
+  }
+}
+
+async function reloadDB() {
+  try {
+    const SQL = await initSqlJs({
+      locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+    });
+    const resp = await fetch('../data/company.db');
+    if (!resp.ok) return;
+    const buf = await resp.arrayBuffer();
+    db = new SQL.Database(new Uint8Array(buf));
+    loadAllViews();
+    updateTimestamp();
+  } catch (e) {
+    console.warn('Auto-refresh failed:', e);
+  }
+}
+
+function query(sql) {
+  if (!db) return [];
+  try {
+    const result = db.exec(sql);
+    if (!result.length) return [];
+    const cols = result[0].columns;
+    return result[0].values.map(row => {
+      const obj = {};
+      cols.forEach((c, i) => obj[c] = row[i]);
+      return obj;
+    });
+  } catch (e) {
+    console.warn('Query error:', sql, e);
+    return [];
+  }
+}
+
+// ============================================================
+// Navigation
+// ============================================================
+function switchView(viewId) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+  const view = document.getElementById('view-' + viewId);
+  const nav = document.querySelector(`.nav-item[data-view="${viewId}"]`);
+  if (view) view.classList.add('active');
+  if (nav) nav.classList.add('active');
+
+  // Close mobile sidebar
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+function updateTimestamp() {
+  const now = new Date();
+  const ts = now.toLocaleString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+  document.getElementById('last-updated').textContent = ts;
+}
+
+// ============================================================
+// Formatting Helpers
+// ============================================================
+function fmt(n) {
+  if (n == null) return '--';
+  if (typeof n === 'number') return n.toLocaleString();
+  return n;
+}
+
+function fmtPct(n) {
+  if (n == null) return '--';
+  return Math.round(n) + '%';
+}
+
+function fmtDuration(sec) {
+  if (sec == null) return '--';
+  if (sec < 60) return sec.toFixed(1) + 's';
+  return (sec / 60).toFixed(1) + 'm';
+}
+
+function fmtDate(d) {
+  if (!d) return '--';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+    dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function daysSince(d) {
+  if (!d) return '--';
+  const diff = (Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24);
+  if (diff < 1) return '<1d';
+  return Math.floor(diff) + 'd';
+}
+
+function statusBadge(status) {
+  const map = {
+    'success': 'badge-green',
+    'merged': 'badge-green',
+    'open': 'badge-blue',
+    'failed': 'badge-red',
+    'rolled_back': 'badge-yellow',
+    'closed': 'badge-neutral',
+  };
+  return `<span class="badge ${map[status] || 'badge-neutral'}">${status}</span>`;
+}
+
+function severityBadge(sev) {
+  const map = {
+    'critical': 'badge-red',
+    'high': 'badge-yellow',
+    'medium': 'badge-blue',
+    'low': 'badge-neutral',
+    'P0': 'badge-red',
+    'P1': 'badge-red',
+    'P2': 'badge-yellow',
+    'P3': 'badge-neutral',
+  };
+  return `<span class="badge ${map[sev] || 'badge-neutral'}">${sev}</span>`;
+}
+
+// ============================================================
+// Chart Helpers
+// ============================================================
+const chartDefaults = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      labels: { color: '#94a3b8', font: { size: 12 } }
+    }
+  },
+  scales: {
+    x: {
+      ticks: { color: '#94a3b8', font: { size: 11 } },
+      grid: { color: 'rgba(38,43,58,0.5)' }
+    },
+    y: {
+      ticks: { color: '#94a3b8', font: { size: 11 } },
+      grid: { color: 'rgba(38,43,58,0.5)' }
+    }
+  }
+};
+
+function makeChart(canvasId, config) {
+  // Destroy existing chart if present
+  if (charts[canvasId]) {
+    charts[canvasId].destroy();
+  }
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return null;
+  const c = new Chart(ctx, config);
+  charts[canvasId] = c;
+  return c;
+}
+
+function barChartConfig(labels, datasets, stacked) {
+  return {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      ...chartDefaults,
+      scales: {
+        ...chartDefaults.scales,
+        x: { ...chartDefaults.scales.x, stacked: !!stacked },
+        y: { ...chartDefaults.scales.y, stacked: !!stacked, beginAtZero: true }
+      }
+    }
+  };
+}
+
+function lineChartConfig(labels, datasets) {
+  return {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      ...chartDefaults,
+      scales: {
+        ...chartDefaults.scales,
+        y: { ...chartDefaults.scales.y, beginAtZero: false }
+      }
+    }
+  };
+}
+
+function doughnutChartConfig(labels, data, colors) {
+  return {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderColor: '#13151c',
+        borderWidth: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#94a3b8', font: { size: 12 }, padding: 16 }
+        }
+      }
+    }
+  };
+}
+
+// ============================================================
+// Load All Views
+// ============================================================
+function loadAllViews() {
+  loadOverview();
+  loadSprint();
+  loadPRs();
+  loadDeploy();
+  loadTesting();
+  loadSecurity();
+  loadSystem();
+}
+
+// ============================================================
+// VIEW: Overview
+// ============================================================
+function loadOverview() {
+  // Sprint velocity
+  const vel = query("SELECT velocity_completed, velocity_committed FROM sprint_metrics ORDER BY week_of DESC LIMIT 1");
+  if (vel.length) {
+    const pct = vel[0].velocity_committed > 0
+      ? Math.round((vel[0].velocity_completed / vel[0].velocity_committed) * 100) : 0;
+    document.getElementById('kpi-velocity').textContent = vel[0].velocity_completed;
+    document.getElementById('kpi-velocity-sub').textContent = vel[0].velocity_committed + ' committed';
+    document.getElementById('kpi-velocity-gauge').style.width = pct + '%';
+  }
+
+  // Open PRs
+  const prs = query("SELECT count(*) as cnt FROM pull_requests WHERE status='open'");
+  document.getElementById('kpi-open-prs').textContent = prs.length ? fmt(prs[0].cnt) : '0';
+
+  // Deploys last 7 days
+  const dep = query("SELECT count(*) as cnt FROM deployments WHERE deployed_at > datetime('now', '-7 days')");
+  document.getElementById('kpi-deploys').textContent = dep.length ? fmt(dep[0].cnt) : '0';
+
+  // Test pass rate
+  const tst = query("SELECT passed, total FROM test_runs ORDER BY run_at DESC LIMIT 1");
+  if (tst.length && tst[0].total > 0) {
+    const rate = (tst[0].passed / tst[0].total * 100);
+    document.getElementById('kpi-test-pass').textContent = fmtPct(rate);
+    document.getElementById('kpi-test-pass-sub').textContent = tst[0].passed + ' / ' + tst[0].total + ' passed';
+    document.getElementById('kpi-test-gauge').style.width = rate + '%';
+  }
+
+  // Active incidents
+  const inc = query("SELECT count(*) as cnt FROM incidents WHERE resolved_at IS NULL");
+  document.getElementById('kpi-incidents').textContent = inc.length ? fmt(inc[0].cnt) : '0';
+
+  // Alert banner
+  const alertEl = document.getElementById('overview-alert');
+  const critSec = query("SELECT sum(critical) as c FROM security_scans WHERE scanned_at > datetime('now', '-7 days')");
+  const openInc = query("SELECT count(*) as c FROM incidents WHERE resolved_at IS NULL AND (severity='P0' OR severity='P1')");
+
+  const alerts = [];
+  if (critSec.length && critSec[0].c > 0) {
+    alerts.push(critSec[0].c + ' critical security finding(s)');
+  }
+  if (openInc.length && openInc[0].c > 0) {
+    alerts.push(openInc[0].c + ' open P0/P1 incident(s)');
+  }
+
+  if (alerts.length) {
+    alertEl.innerHTML = '<div class="alert-banner">&#9888; ' + alerts.join(' &mdash; ') + '</div>';
+  } else {
+    alertEl.innerHTML = '<div class="nominal-banner">&#10003; All systems nominal</div>';
+  }
+}
+
+// ============================================================
+// VIEW: Sprint
+// ============================================================
+function loadSprint() {
+  const rows = query(`
+    SELECT sprint_id, squad, velocity_committed, velocity_completed,
+           stories_committed, stories_completed
+    FROM sprint_metrics ORDER BY week_of DESC LIMIT 12
+  `);
+
+  if (!rows.length) return;
+
+  // Group by sprint for velocity chart
+  const sprintMap = {};
+  rows.forEach(r => {
+    if (!sprintMap[r.sprint_id]) sprintMap[r.sprint_id] = { committed: 0, completed: 0 };
+    sprintMap[r.sprint_id].committed += r.velocity_committed;
+    sprintMap[r.sprint_id].completed += r.velocity_completed;
+  });
+
+  const sprints = Object.keys(sprintMap).reverse();
+  const committed = sprints.map(s => sprintMap[s].committed);
+  const completed = sprints.map(s => sprintMap[s].completed);
+
+  makeChart('chart-velocity', barChartConfig(sprints, [
+    { label: 'Committed', data: committed, backgroundColor: 'rgba(59,130,246,0.7)', borderRadius: 4 },
+    { label: 'Completed', data: completed, backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 }
+  ]));
+
+  // Completion rate line chart
+  const completionRate = sprints.map(s =>
+    sprintMap[s].committed > 0
+      ? Math.round((sprintMap[s].completed / sprintMap[s].committed) * 100) : 0
+  );
+
+  makeChart('chart-completion-rate', lineChartConfig(sprints, [{
+    label: 'Completion %',
+    data: completionRate,
+    borderColor: '#10b981',
+    backgroundColor: 'rgba(16,185,129,0.1)',
+    fill: true,
+    tension: 0.3,
+    pointBackgroundColor: '#10b981',
+    pointRadius: 5
+  }]));
+
+  // Current sprint table (latest sprint entries)
+  const latestSprint = rows[0].sprint_id;
+  const current = rows.filter(r => r.sprint_id === latestSprint);
+  const tbody = document.getElementById('sprint-table-body');
+
+  if (current.length) {
+    tbody.innerHTML = current.map(r => {
+      const pct = r.velocity_committed > 0
+        ? Math.round((r.velocity_completed / r.velocity_committed) * 100) : 0;
+      const badge = pct >= 90 ? 'badge-green' : pct >= 70 ? 'badge-yellow' : 'badge-red';
+      return `<tr>
+        <td><strong>${r.squad}</strong></td>
+        <td>${r.sprint_id}</td>
+        <td>${r.velocity_committed} pts</td>
+        <td>${r.velocity_completed} pts</td>
+        <td>${r.stories_completed} / ${r.stories_committed}</td>
+        <td><span class="badge ${badge}">${pct}%</span></td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+// ============================================================
+// VIEW: Pull Requests
+// ============================================================
+function loadPRs() {
+  // PR velocity by week
+  const prVel = query(`
+    SELECT strftime('%Y-W%W', opened_at) as week, count(*) as opened,
+      sum(CASE WHEN status='merged' THEN 1 ELSE 0 END) as merged
+    FROM pull_requests GROUP BY week ORDER BY week DESC LIMIT 4
+  `);
+
+  if (prVel.length) {
+    const weeks = prVel.map(r => r.week).reverse();
+    const opened = prVel.map(r => r.opened).reverse();
+    const merged = prVel.map(r => r.merged).reverse();
+
+    makeChart('chart-pr-velocity', barChartConfig(weeks, [
+      { label: 'Opened', data: opened, backgroundColor: 'rgba(59,130,246,0.7)', borderRadius: 4 },
+      { label: 'Merged', data: merged, backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 }
+    ]));
+  }
+
+  // Review SLA
+  const sla = query(`
+    SELECT count(*) as total,
+      sum(CASE WHEN review_time_hours <= 24 THEN 1 ELSE 0 END) as within_sla
+    FROM pull_requests WHERE status='merged'
+  `);
+
+  if (sla.length && sla[0].total > 0) {
+    const pct = Math.round((sla[0].within_sla / sla[0].total) * 100);
+    document.getElementById('pr-sla-pct').textContent = pct + '%';
+    document.getElementById('pr-sla-gauge').style.width = pct + '%';
+    document.getElementById('pr-sla-gauge').className =
+      'gauge-fill ' + (pct >= 80 ? 'gauge-green' : pct >= 60 ? 'gauge-yellow' : 'gauge-red');
+    document.getElementById('pr-sla-detail').textContent =
+      sla[0].within_sla + ' / ' + sla[0].total + ' merged PRs';
+  }
+
+  // Open PRs table
+  const openPRs = query("SELECT * FROM pull_requests WHERE status='open' ORDER BY opened_at ASC");
+  const tbody = document.getElementById('open-prs-body');
+
+  if (openPRs.length) {
+    tbody.innerHTML = openPRs.map(r => {
+      const age = daysSince(r.opened_at);
+      const ageNum = parseFloat(age);
+      const ageBadge = ageNum > 3 ? 'badge-red' : ageNum > 1 ? 'badge-yellow' : 'badge-green';
+      return `<tr>
+        <td>${r.repo}</td>
+        <td>#${r.pr_number}</td>
+        <td>${r.title}</td>
+        <td>${r.author}</td>
+        <td>${fmtDate(r.opened_at)}</td>
+        <td><span class="badge ${ageBadge}">${age}</span></td>
+        <td>${r.files_changed || '--'}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No open PRs</td></tr>';
+  }
+}
+
+// ============================================================
+// VIEW: Deployments
+// ============================================================
+function loadDeploy() {
+  // Deploy frequency by env/week
+  const freq = query(`
+    SELECT strftime('%Y-W%W', deployed_at) as week, environment, count(*) as deploys
+    FROM deployments GROUP BY week, environment ORDER BY week DESC
+  `);
+
+  if (freq.length) {
+    // Pivot: unique weeks as labels, environments as datasets
+    const weekSet = [...new Set(freq.map(r => r.week))].sort();
+    const envSet = [...new Set(freq.map(r => r.environment))];
+    const colorMap = {
+      'production': 'rgba(16,185,129,0.7)',
+      'staging': 'rgba(59,130,246,0.7)',
+      'development': 'rgba(245,158,11,0.7)'
+    };
+
+    const datasets = envSet.map(env => ({
+      label: env,
+      data: weekSet.map(w => {
+        const match = freq.find(r => r.week === w && r.environment === env);
+        return match ? match.deploys : 0;
+      }),
+      backgroundColor: colorMap[env] || 'rgba(148,163,184,0.5)',
+      borderRadius: 4
+    }));
+
+    makeChart('chart-deploy-freq', barChartConfig(weekSet, datasets, true));
+  }
+
+  // MTTR
+  const mttr = query("SELECT avg(mttr_minutes) as avg_mttr FROM incidents WHERE resolved_at IS NOT NULL");
+  if (mttr.length && mttr[0].avg_mttr != null) {
+    const mins = Math.round(mttr[0].avg_mttr);
+    document.getElementById('deploy-mttr').textContent = mins + 'm';
+  }
+
+  // Recent deploys table
+  const recent = query("SELECT * FROM deployments ORDER BY deployed_at DESC LIMIT 10");
+  const tbody = document.getElementById('deploy-table-body');
+
+  if (recent.length) {
+    tbody.innerHTML = recent.map(r => `<tr>
+      <td>${r.repo}</td>
+      <td><span class="badge ${r.environment === 'production' ? 'badge-green' : 'badge-blue'}">${r.environment}</span></td>
+      <td><code>${r.version}</code></td>
+      <td>${r.deployed_by}</td>
+      <td>${fmtDate(r.deployed_at)}</td>
+      <td>${statusBadge(r.status)}</td>
+    </tr>`).join('');
+  }
+}
+
+// ============================================================
+// VIEW: Testing
+// ============================================================
+function loadTesting() {
+  // Test health by type
+  const health = query(`
+    SELECT test_type, sum(passed) as passed, sum(failed) as failed, sum(skipped) as skipped
+    FROM test_runs WHERE run_at > datetime('now', '-7 days') GROUP BY test_type
+  `);
+
+  if (health.length) {
+    const types = health.map(r => r.test_type);
+    makeChart('chart-test-health', barChartConfig(types, [
+      { label: 'Passed', data: health.map(r => r.passed), backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 },
+      { label: 'Failed', data: health.map(r => r.failed), backgroundColor: 'rgba(239,68,68,0.7)', borderRadius: 4 },
+      { label: 'Skipped', data: health.map(r => r.skipped), backgroundColor: 'rgba(148,163,184,0.4)', borderRadius: 4 }
+    ], true));
+  }
+
+  // Coverage trend
+  const cov = query(`
+    SELECT run_at, coverage_pct FROM test_runs
+    WHERE test_type='unit' AND coverage_pct IS NOT NULL
+    ORDER BY run_at DESC LIMIT 10
+  `);
+
+  if (cov.length) {
+    const labels = cov.map(r => fmtDate(r.run_at)).reverse();
+    const data = cov.map(r => r.coverage_pct).reverse();
+
+    makeChart('chart-coverage-trend', lineChartConfig(labels, [{
+      label: 'Coverage %',
+      data: data,
+      borderColor: '#3b82f6',
+      backgroundColor: 'rgba(59,130,246,0.1)',
+      fill: true,
+      tension: 0.3,
+      pointBackgroundColor: '#3b82f6',
+      pointRadius: 5
+    }]));
+  }
+
+  // Latest test runs table
+  const runs = query("SELECT * FROM test_runs ORDER BY run_at DESC LIMIT 10");
+  const tbody = document.getElementById('test-table-body');
+
+  if (runs.length) {
+    tbody.innerHTML = runs.map(r => {
+      const covStr = r.coverage_pct != null ? r.coverage_pct + '%' : '--';
+      const failBadge = r.failed > 0 ? 'badge-red' : 'badge-green';
+      return `<tr>
+        <td>${r.repo}</td>
+        <td><code>${r.branch}</code></td>
+        <td>${r.test_type}</td>
+        <td>${r.passed}</td>
+        <td><span class="badge ${failBadge}">${r.failed}</span></td>
+        <td>${r.skipped}</td>
+        <td>${covStr}</td>
+        <td>${fmtDuration(r.duration_seconds)}</td>
+        <td>${fmtDate(r.run_at)}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+// ============================================================
+// VIEW: Security
+// ============================================================
+function loadSecurity() {
+  // Security posture donut
+  const posture = query(`
+    SELECT sum(critical) as critical, sum(high) as high,
+           sum(medium) as medium, sum(low) as low
+    FROM security_scans WHERE scanned_at > datetime('now', '-7 days')
+  `);
+
+  if (posture.length) {
+    const p = posture[0];
+    const labels = ['Critical', 'High', 'Medium', 'Low'];
+    const data = [p.critical || 0, p.high || 0, p.medium || 0, p.low || 0];
+    const colors = ['#ef4444', '#f59e0b', '#3b82f6', '#94a3b8'];
+
+    if (data.some(v => v > 0)) {
+      makeChart('chart-security-donut', doughnutChartConfig(labels, data, colors));
+    }
+  }
+
+  // Tech debt cards
+  const debt = query("SELECT severity, count(*) as count FROM tech_debt WHERE resolved_at IS NULL GROUP BY severity");
+  const debtEl = document.getElementById('tech-debt-cards');
+
+  if (debt.length) {
+    const sevOrder = { 'critical': 0, 'high': 1, 'medium': 2, 'low': 3 };
+    debt.sort((a, b) => (sevOrder[a.severity] ?? 9) - (sevOrder[b.severity] ?? 9));
+
+    debtEl.innerHTML = debt.map(r => {
+      const colorClass = { critical: 'accent-red', high: 'accent-yellow', medium: 'accent-blue', low: '' }[r.severity] || '';
+      return `<div class="hud-card" style="padding:16px;">
+        <div class="accent-bar ${colorClass}"></div>
+        <div class="hud-label">${r.severity}</div>
+        <div class="hud-value small">${r.count}</div>
+      </div>`;
+    }).join('');
+  } else {
+    debtEl.innerHTML = '<div class="empty-state">No tech debt tracked</div>';
+  }
+
+  // Findings table
+  const scans = query("SELECT repo, scan_type, critical, high, medium, low, scanned_at FROM security_scans ORDER BY scanned_at DESC");
+  const tbody = document.getElementById('security-table-body');
+
+  if (scans.length) {
+    tbody.innerHTML = scans.map(r => {
+      const critHtml = r.critical > 0
+        ? `<span class="badge badge-red">${r.critical}</span>` : '0';
+      const highHtml = r.high > 0
+        ? `<span class="badge badge-yellow">${r.high}</span>` : '0';
+      return `<tr>
+        <td>${r.repo}</td>
+        <td>${r.scan_type}</td>
+        <td>${critHtml}</td>
+        <td>${highHtml}</td>
+        <td>${r.medium}</td>
+        <td>${r.low}</td>
+        <td>${fmtDate(r.scanned_at)}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+// ============================================================
+// VIEW: System Health
+// ============================================================
+function loadSystem() {
+  // Agent dispatches
+  const dispatches = query(`
+    SELECT agent, count(*) as dispatches FROM agent_usage
+    WHERE dispatched_at > datetime('now', '-7 days') GROUP BY agent
+  `);
+
+  if (dispatches.length) {
+    const agents = dispatches.map(r => r.agent);
+    const counts = dispatches.map(r => r.dispatches);
+
+    makeChart('chart-agent-dispatch', barChartConfig(agents, [{
+      label: 'Dispatches',
+      data: counts,
+      backgroundColor: 'rgba(59,130,246,0.7)',
+      borderRadius: 4
+    }]));
+  }
+
+  // Token spend
+  const tokens = query(`
+    SELECT agent, sum(tokens_in + tokens_out) as total_tokens FROM agent_usage
+    WHERE dispatched_at > datetime('now', '-7 days') GROUP BY agent
+  `);
+
+  if (tokens.length) {
+    const agents = tokens.map(r => r.agent);
+    const totals = tokens.map(r => r.total_tokens);
+
+    makeChart('chart-token-spend', barChartConfig(agents, [{
+      label: 'Total Tokens',
+      data: totals,
+      backgroundColor: 'rgba(245,158,11,0.7)',
+      borderRadius: 4
+    }]));
+  }
+
+  // Recent dispatches table
+  const recent = query("SELECT * FROM agent_usage ORDER BY dispatched_at DESC LIMIT 10");
+  const tbody = document.getElementById('agent-table-body');
+
+  if (recent.length) {
+    tbody.innerHTML = recent.map(r => {
+      const modelBadge = r.model === 'opus' ? 'badge-yellow' : r.model === 'sonnet' ? 'badge-blue' : 'badge-neutral';
+      return `<tr>
+        <td><strong>${r.agent}</strong></td>
+        <td>${r.task_type}</td>
+        <td><span class="badge ${modelBadge}">${r.model}</span></td>
+        <td>${fmt(r.tokens_in)}</td>
+        <td>${fmt(r.tokens_out)}</td>
+        <td>${fmtDuration(r.duration_seconds)}</td>
+        <td>${r.project}</td>
+        <td>${fmtDate(r.dispatched_at)}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+// ============================================================
+// VIEW: Memory (wantan-mem worker at localhost:37778)
+// ============================================================
+const MEM_URL = 'http://localhost:37778';
+let memInitialized = false;
+
+async function memFetch(path) {
+  const res = await fetch(MEM_URL + path);
+  if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+  return res.json();
+}
+
+async function initMemoryView() {
+  const banner = document.getElementById('mem-worker-banner');
+
+  // Check worker health
+  try {
+    const health = await memFetch('/api/health');
+    const upMin = Math.round(health.uptime / 60);
+    banner.innerHTML = `<div class="mem-worker-online">&#9679; wantan-mem worker online &mdash; uptime ${upMin}m</div>`;
+  } catch (e) {
+    banner.innerHTML = `<div class="mem-worker-offline">&#9679; wantan-mem worker offline &mdash; start it with <code>cd plugin/mem && npx tsx src/worker/server.ts</code></div>`;
+    return;
+  }
+
+  // Stats
+  try {
+    const stats = await memFetch('/api/stats');
+    document.getElementById('mem-stat-obs').textContent = fmt(stats.total_observations);
+    document.getElementById('mem-stat-facts').textContent = '--'; // loaded separately
+    document.getElementById('mem-stat-sessions').textContent = fmt(stats.total_sessions);
+    const kb = Math.round(stats.db_size_bytes / 1024);
+    document.getElementById('mem-stat-size').textContent = kb > 1024 ? (kb/1024).toFixed(1) + ' MB' : kb + ' KB';
+
+    // Populate project selector from agent observations
+    const projects = new Set();
+    Object.values(stats.observations_by_agent || {});
+    // Fetch a broader project list via search
+    await loadMemProjects();
+  } catch (e) {
+    console.warn('Memory stats failed', e);
+  }
+
+  // Category breakdown (global)
+  await loadMemCategories();
+
+  // Recent observations
+  await loadMemRecent();
+
+  memInitialized = true;
+}
+
+async function loadMemProjects() {
+  // Search for known projects via categories endpoint
+  try {
+    const cats = await memFetch('/api/facts/categories');
+    const totalFacts = cats.reduce((s, c) => s + c.count, 0);
+    document.getElementById('mem-stat-facts').textContent = fmt(totalFacts);
+  } catch (e) {}
+
+  // Fetch a sample of facts to find project names
+  try {
+    const res = await memFetch('/api/facts/search?query=*&limit=50');
+    const text = res.content?.[0]?.text || '';
+    const projects = new Set();
+    text.split('\n').slice(2).forEach(line => {
+      const parts = line.split('|').map(s => s.trim());
+      if (parts[5]) projects.add(parts[5]);
+    });
+
+    const sel = document.getElementById('mem-project-select');
+    const currentVal = sel.value;
+    // Keep first option, rebuild rest
+    while (sel.options.length > 1) sel.remove(1);
+    [...projects].filter(Boolean).sort().forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      sel.appendChild(opt);
+    });
+    if (currentVal) sel.value = currentVal;
+  } catch (e) {}
+}
+
+async function loadMemCategories() {
+  const grid = document.getElementById('mem-category-grid');
+  try {
+    const project = document.getElementById('mem-project-select')?.value || '';
+    const url = '/api/facts/categories' + (project ? '?project=' + encodeURIComponent(project) : '');
+    const cats = await memFetch(url);
+
+    const catColors = {
+      decision: 'accent-green',
+      architecture: 'accent-blue',
+      error: 'accent-red',
+      security: 'accent-red',
+      pattern: 'accent-blue',
+      preference: 'accent-yellow',
+      learned: 'accent-yellow',
+      blocker: 'accent-red',
+    };
+
+    if (cats.length) {
+      grid.innerHTML = cats.map(c => `
+        <div class="hud-card" style="padding:16px;">
+          <div class="accent-bar ${catColors[c.category] || ''}"></div>
+          <div class="hud-label">${c.category}</div>
+          <div class="hud-value small">${c.count}</div>
+        </div>
+      `).join('');
+    } else {
+      grid.innerHTML = '<div class="empty-state" style="grid-column:span 4;">No facts yet</div>';
+    }
+  } catch (e) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:span 4;">Could not load categories</div>';
+  }
+}
+
+async function loadMemIndex() {
+  const project = document.getElementById('mem-project-select').value;
+  const card = document.getElementById('mem-index-card');
+  await loadMemCategories();
+
+  if (!project) {
+    card.innerHTML = '<div class="empty-state">Select a project to view its memory index</div>';
+    return;
+  }
+
+  card.innerHTML = '<div class="empty-state">Loading...</div>';
+
+  try {
+    const res = await memFetch('/api/facts/index?project=' + encodeURIComponent(project));
+    const text = res.content?.[0]?.text || '';
+
+    if (text.startsWith('No memory index')) {
+      // Try to rebuild
+      await fetch(MEM_URL + '/api/facts/rebuild-index', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ project })
+      });
+      const res2 = await memFetch('/api/facts/index?project=' + encodeURIComponent(project));
+      renderMemIndex(card, res2.content?.[0]?.text || '');
+    } else {
+      renderMemIndex(card, text);
+    }
+  } catch (e) {
+    card.innerHTML = '<div class="empty-state">Could not load memory index</div>';
+  }
+}
+
+function renderMemIndex(card, text) {
+  if (!text || text.startsWith('No memory index')) {
+    card.innerHTML = '<div class="empty-state">No memory index found for this project yet</div>';
+    return;
+  }
+
+  const lines = text.split('\n');
+  let summaryLines = [];
+  let keyFactLines = [];
+  let inKeyFacts = false;
+
+  for (const line of lines) {
+    if (line.startsWith('## Key Facts')) { inKeyFacts = true; continue; }
+    if (line.startsWith('## ') && inKeyFacts) { inKeyFacts = false; }
+    if (inKeyFacts && line.startsWith('-')) keyFactLines.push(line);
+    else if (!line.startsWith('#') && !inKeyFacts) summaryLines.push(line);
+  }
+
+  const summaryHtml = summaryLines.filter(l => l.trim()).map(l =>
+    `<p style="margin-bottom:6px; color:var(--text-muted);">${l}</p>`
+  ).join('');
+
+  const keyFactsHtml = keyFactLines.map(line => {
+    const catMatch = line.match(/\[(\w+)\]/);
+    const impMatch = line.match(/importance:\s*(\d+)/);
+    const content = line.replace(/^-\s*/, '').replace(/\[.*?\]/g, '').replace(/\(importance:\s*\d+\)/, '').trim();
+    const cat = catMatch?.[1] || 'learned';
+    const imp = parseInt(impMatch?.[1] || '3');
+    const impClass = imp >= 10 ? 'fact-imp-10' : imp >= 8 ? 'fact-imp-8' : imp >= 6 ? 'fact-imp-6' : 'fact-imp-low';
+    return `<div class="mem-key-fact">
+      <span class="fact-imp ${impClass}">${imp}</span>
+      <span class="badge badge-neutral" style="flex-shrink:0;">${cat}</span>
+      <span>${content}</span>
+    </div>`;
+  }).join('');
+
+  card.innerHTML = `
+    <div style="margin-bottom:${summaryHtml ? '16px' : '0'};">${summaryHtml}</div>
+    ${keyFactsHtml || '<div class="empty-state">No key facts indexed yet</div>'}
+  `;
+}
+
+async function searchFacts() {
+  const query = document.getElementById('mem-search-input').value.trim();
+  const cat = document.getElementById('mem-cat-filter').value;
+  const project = document.getElementById('mem-project-select').value;
+  const tbody = document.getElementById('mem-facts-body');
+
+  if (!query && !cat) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Enter a search term</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Searching...</td></tr>';
+
+  try {
+    let url = '/api/facts/search?query=' + encodeURIComponent(query || '*') + '&limit=30';
+    if (cat) url += '&category=' + encodeURIComponent(cat);
+    if (project) url += '&project=' + encodeURIComponent(project);
+
+    const res = await memFetch(url);
+    const text = res.content?.[0]?.text || '';
+    const lines = text.split('\n').filter(l => l.startsWith('|') && !l.includes('---'));
+
+    if (lines.length <= 1) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No facts found</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = lines.slice(1).map(line => {
+      const parts = line.split('|').map(s => s.trim()).filter(Boolean);
+      if (parts.length < 6) return '';
+      const [id, cat, imp, content, proj, date] = parts;
+      const impNum = parseInt(imp);
+      const impClass = impNum >= 10 ? 'fact-imp-10' : impNum >= 8 ? 'fact-imp-8' : impNum >= 6 ? 'fact-imp-6' : 'fact-imp-low';
+      const catClass = { decision: 'badge-green', architecture: 'badge-blue', error: 'badge-red', security: 'badge-red', blocker: 'badge-yellow' }[cat] || 'badge-neutral';
+      return `<tr>
+        <td><span class="badge ${catClass}">${cat}</span></td>
+        <td><span class="fact-imp ${impClass}" style="display:inline-block;">${imp}</span></td>
+        <td style="max-width:400px; word-break:break-word;">${content}</td>
+        <td><span style="color:var(--text-muted);font-size:11px;">${proj}</span></td>
+        <td><span style="color:var(--text-muted);font-size:11px;">${parts[4] || ''}</span></td>
+        <td style="color:var(--text-muted);font-size:11px;">${date}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Search failed: ${e.message}</td></tr>`;
+  }
+}
+
+async function loadMemRecent() {
+  const tbody = document.getElementById('mem-recent-body');
+  try {
+    const project = document.getElementById('mem-project-select')?.value || '';
+    const url = '/api/search?query=*&limit=15' + (project ? '&project=' + encodeURIComponent(project) : '');
+    const res = await memFetch(url);
+    const text = res.content?.[0]?.text || '';
+    const lines = text.split('\n').filter(l => l.startsWith('|') && !l.includes('---'));
+
+    if (lines.length <= 1) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No observations yet</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = lines.slice(1).map(line => {
+      const parts = line.split('|').map(s => s.trim()).filter(Boolean);
+      if (parts.length < 5) return '';
+      const [id, type, agent, snippet, date] = parts;
+      const typeClass = { decision: 'badge-green', error: 'badge-red', insight: 'badge-blue', review: 'badge-neutral', tool_use: 'badge-neutral' }[type] || 'badge-neutral';
+      return `<tr>
+        <td><span class="badge ${typeClass}">${type}</span></td>
+        <td style="color:var(--text-muted);">${agent}</td>
+        <td style="max-width:400px; word-break:break-word; font-size:12px;">${snippet}</td>
+        <td style="color:var(--text-muted);font-size:11px;">${parts[4] || ''}</td>
+        <td style="color:var(--text-muted);font-size:11px;">${date}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Could not load recent observations</td></tr>`;
+  }
+}
+
+// ============================================================
+// Init
+// ============================================================
+document.addEventListener('DOMContentLoaded', initDB);
+</script>
+</body>
+</html>

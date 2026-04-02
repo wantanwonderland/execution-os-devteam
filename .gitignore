@@ -1,0 +1,37 @@
+# Claude Code local overrides
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Environment and secrets
+.env*
+.mcp.json
+!plugin/.mcp.json
+
+# OS files
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Python
+__pycache__/
+
+# Plugin: wantan-mem build artifacts
+plugin/mem/dist/
+plugin/mem/node_modules/
+
+# Plugin: hook server runtime
+plugin/hooks/logs/
+plugin/hooks/hook-server.pid
+
+# Vault: generated database
+vault/data/company.db
+
+# Vault: test evidence (screenshots — local only)
+vault/.claude/test-evidence/
+
+# Wizard marker
+.wizard-complete
+
+# PDFs
+*.pdf
