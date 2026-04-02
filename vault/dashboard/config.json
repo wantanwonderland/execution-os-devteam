@@ -1,0 +1,9 @@
+{
+  "company_name": "Dev Team",
+  "currency": "$",
+  "sprint_duration_weeks": 2,
+  "review_sla_hours": 24,
+  "deploy_frequency_target": 3,
+  "test_coverage_target": 80,
+  "mttr_target_minutes": 240
+}

@@ -1,0 +1,25 @@
+# Local overrides
+CLAUDE.local.md
+.claude/settings.local.json
+.env*
+.mcp.json
+
+# OS
+.DS_Store
+
+# Dependencies
+node_modules/
+__pycache__/
+
+# Hook runtime
+.claude/hooks/logs/
+.claude/hooks/hook-server.pid
+
+# Test evidence (screenshots — local only)
+.claude/test-evidence/
+
+# Generated database
+data/company.db
+
+# Wizard marker
+.wizard-complete

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "wantan-mem": {
+      "command": "bash",
+      "args": ["-c", "cd ${CLAUDE_PLUGIN_ROOT}/mem && [ ! -d node_modules ] && npm install --silent 2>/dev/null; exec npx tsx src/mcp/server.ts"],
+      "env": {}
+    }
+  }
+}

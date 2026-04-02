@@ -1,0 +1,13 @@
+{
+  "name": "execution-os-devteam",
+  "description": "AI-powered dev team OS — 12 anime agents, 33 commands, 51 skills, quality gates, wantan-mem memory system",
+  "version": "1.2.1",
+  "author": {
+    "name": "Execution-OS"
+  },
+  "license": "MIT",
+  "keywords": ["dev-team", "agents", "sprint", "code-review", "testing", "security", "devops", "playwright", "memory", "frontend", "mobile", "fullstack"],
+  "commands": "./commands/",
+  "agents": "./agents/",
+  "skills": "./skills/"
+}
