@@ -1,0 +1,43 @@
+{
+  "mcpServers": {
+    "claude_ai_Gmail": {
+      "type": "url",
+      "url": "https://mcp.claude.ai/gmail/mcp"
+    },
+    "claude_ai_Google_Calendar": {
+      "type": "url",
+      "url": "https://mcp.claude.ai/google-calendar/mcp"
+    },
+    "notebooklm-mcp": {
+      "command": "nlm",
+      "args": ["mcp"],
+      "env": {}
+    },
+    "quickbooks": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/qbo-mcp-server"],
+      "env": {
+        "QB_CLIENT_ID": "YOUR_CLIENT_ID",
+        "QB_CLIENT_SECRET": "YOUR_CLIENT_SECRET",
+        "QB_REDIRECT_URI": "YOUR_REDIRECT_URI",
+        "QB_ENVIRONMENT": "production"
+      }
+    },
+    "yt-dlp": {
+      "command": "npx",
+      "args": ["-y", "yt-dlp-mcp-server"],
+      "env": {}
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "env": {}
+    },
+    "wantan-mem": {
+      "command": "npx",
+      "args": ["tsx", "mem/src/mcp/server.ts"],
+      "cwd": ".",
+      "env": {}
+    }
+  }
+}
