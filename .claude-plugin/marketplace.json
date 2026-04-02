@@ -10,8 +10,8 @@
     {
       "name": "execution-os-devteam",
       "source": "./plugin",
-      "description": "12 anime-named AI agents, 33 commands, 51 skills, quality gates, wantan-mem memory, and dev workflow automation",
-      "version": "1.2.1",
+      "description": "12 anime-named AI agents, 34 commands, 52 skills, spec-driven quality gates, wantan-mem memory with fact extraction, and dev workflow automation",
+      "version": "2.0.0",
       "category": "development",
       "tags": ["dev-team", "sprint", "code-review", "testing", "security", "devops"],
       "strict": false
