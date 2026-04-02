@@ -1,0 +1,57 @@
+# Agent Gate Policy
+
+Per-agent classification of which actions are auto-approved vs require human review.
+Referenced by Wantan before executing any agent action.
+
+## Gate Matrix
+
+| Agent | Action | Gate | Reason |
+|-------|--------|------|--------|
+| **Levi** | Read PR diff, analyze code | Auto | Read-only |
+| **Levi** | Post review comment on GitHub | Review-required | External side effect |
+| **Levi** | Write review to vault | Auto | Internal |
+| **Killua** | Execute browser tests | Auto | Read-only, no side effects |
+| **Killua** | Write test report to vault | Auto | Internal |
+| **Killua** | Write test results to DB | Auto | Internal |
+| **Itachi** | Scan dependencies, read alerts | Auto | Read-only |
+| **Itachi** | Open GitHub security issue | Review-required | External side effect |
+| **Itachi** | Write security report to vault | Auto | Internal |
+| **Shikamaru** | Check CI status, deploy history | Auto | Read-only |
+| **Shikamaru** | Trigger deploy | Review-required | Destructive |
+| **Shikamaru** | Trigger rollback | Blocked | High-risk destructive |
+| **Shikamaru** | Write deploy record to vault | Auto | Internal |
+| **L** | Generate ADR, runbook, postmortem | Auto | Draft to vault |
+| **L** | Write documentation to vault | Auto | Internal |
+| **Erwin** | Query sprint data, compute metrics | Auto | Read-only |
+| **Erwin** | Post sprint summary externally | Review-required | Visible to team |
+| **Erwin** | Write sprint review to vault | Auto | Internal |
+| **Erwin** | Compute contribution review | Auto | Draft to vault |
+| **Hange** | Research via web/vault | Auto | Read-only |
+| **Senku** | Create/modify agent definitions | Review-required | System change |
+| **Sai** | Update dashboard HTML | Auto | Internal |
+| **Byakuya** | Run vault audit | Auto | Read-only |
+| **Tanjiro** | Scaffold new project | Auto | Internal |
+| **Tanjiro** | Write components, routes, schemas | Auto | Internal |
+| **Tanjiro** | Install packages (npm/pip) | Review-required | External side effect |
+| **Tanjiro** | Modify existing auth flow | Review-required | Security-sensitive |
+| **Tanjiro** | Apply database migration | Review-required | Destructive |
+| **Ochaco** | Generate design tokens, components | Auto | Internal |
+| **Ochaco** | Write CSS/styled-components | Auto | Internal |
+| **Ochaco** | Modify existing design system | Review-required | Affects all components |
+| **Ochaco** | Install design dependencies | Review-required | External side effect |
+
+## Rules
+
+1. **Vault writes are always Auto** — they are internal and git-reversible
+2. **DB writes are always Auto** — they are internal and queryable
+3. **GitHub writes are always Review-required** — they are external and visible to the team
+4. **Deploys and rollbacks are Blocked** — require explicit CONFIRM
+5. **Agent/system changes are Review-required** — they affect all future behavior
+
+## Overrides
+
+The user can override gate policy inline:
+- "Just do it" / "go ahead" / "auto-approve Levi's reviews for this session" → temporarily upgrade to Auto
+- "Double-check everything" → temporarily downgrade all to Review-required
+
+Overrides last for the current session only. They are NOT persisted.

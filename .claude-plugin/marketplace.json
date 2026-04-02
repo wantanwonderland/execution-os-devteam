@@ -1,0 +1,20 @@
+{
+  "name": "execution-os-devteam",
+  "owner": {
+    "name": "Execution-OS"
+  },
+  "metadata": {
+    "description": "AI-powered operating system for software development teams"
+  },
+  "plugins": [
+    {
+      "name": "execution-os-devteam",
+      "source": "./plugin",
+      "description": "12 anime-named AI agents, 33 commands, 51 skills, quality gates, wantan-mem memory, and dev workflow automation",
+      "version": "1.2.1",
+      "category": "development",
+      "tags": ["dev-team", "sprint", "code-review", "testing", "security", "devops"],
+      "strict": false
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "type": "{{BIZ_TYPE}}",
+  "label": "{{BIZ_LABEL}}",
+  "description": "{{BIZ_DESCRIPTION}}",
+  "revenue_model": "{{REVENUE_MODEL}}",
+  "company_name": "{{COMPANY_NAME}}",
+  "team_size": "{{TEAM_SIZE}}",
+  "currency": "{{CURRENCY}}"
+}
