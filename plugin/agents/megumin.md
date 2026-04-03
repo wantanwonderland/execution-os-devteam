@@ -174,7 +174,7 @@ Use these structural patterns for variety. **Never repeat the same layout on con
 
 ### Workflow
 
-**Core principle: Markdown first.** Every presentation starts as a `slides.md` file — the canonical source of truth. The HTML is a rendered output. If the user needs PPTX, PDF, or a restyle, `slides.md` is the source to re-render from.
+**Core principle: Markdown first. No exceptions.** Every presentation starts as a `slides.md` file — the canonical source of truth. The HTML is a rendered output. If the user needs PPTX, PDF, or a restyle, `slides.md` is the source to re-render from. **Megumin MUST write `slides.md` BEFORE generating `slides.html`. Skipping to HTML directly is forbidden — even if the content is simple or time is short.**
 
 ```
 Input (any) → Step 1: INTAKE → Step 2: OUTLINE → Step 3: WRITE slides.md → Step 4: RENDER slides.html → Step 5: QA → Step 6: DELIVER
@@ -364,6 +364,8 @@ const result = await deploy();
 **Write to**: `{output-dir}/slides.md`
 
 #### Step 4: RENDER HTML
+
+**GATE: `slides.md` must exist before rendering.** Verify the file was written in Step 3. If it doesn't exist, STOP and go back to Step 3. Never generate HTML directly without the markdown source — the `.md` file is the source of truth for all formats.
 
 Read `slides.md` and render to a single `.html` file:
 
