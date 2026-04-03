@@ -12,7 +12,7 @@ async function callWorker(path: string, method = 'GET', body?: any): Promise<any
   };
   if (body) options.body = JSON.stringify(body);
 
-  const response = await fetch(url);
+  const response = await fetch(url, options);
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Worker API error (${response.status}): ${text}`);

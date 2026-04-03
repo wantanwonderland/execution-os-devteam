@@ -135,6 +135,18 @@ export class FactStore {
       content_hash: hash,
     }) as Fact;
 
+    // Auto-rebuild L1 index every 10 facts for this project
+    const factCount = (
+      this.db.prepare('SELECT COUNT(*) as count FROM facts WHERE project = ?').get(observation.project) as { count: number }
+    ).count;
+    if (factCount % 10 === 0) {
+      try {
+        this.rebuildIndex(observation.project);
+      } catch {
+        // Non-fatal — index rebuild failure should not block fact storage
+      }
+    }
+
     return [fact];
   }
 
@@ -220,12 +232,18 @@ export class FactStore {
       this.db.prepare('SELECT COUNT(*) as count FROM observations WHERE project = ?').get(project) as { count: number }
     ).count;
 
-    // Select top 10 facts by weighted score: importance * ln(access_count + 2)
-    // Using ln(access_count + 2) so even zero-access facts get a base multiplier of ln(2) ≈ 0.69
+    // Select top 10 facts by weighted score with recency decay:
+    // score = importance * access_boost * recency_decay
+    // - access_boost = 1.0 + 0.5 * access_count (rewards frequently retrieved facts)
+    // - recency_decay = 0.995 ^ hours_since_creation (exponential decay, half-life ~6 days)
+    // Facts older than ~2 weeks need high importance or access count to stay in the index
     const topFacts = this.db
       .prepare(
-        `SELECT id, category, content, importance, access_count,
-                (importance * 1.0) * (1.0 + 0.5 * CASE WHEN access_count > 0 THEN access_count ELSE 0 END) as score
+        `SELECT id, category, content, importance, access_count, created_at,
+                (importance * 1.0)
+                * (1.0 + 0.5 * CASE WHEN access_count > 0 THEN access_count ELSE 0 END)
+                * POWER(0.995, (julianday('now') - julianday(created_at)) * 24)
+                as score
          FROM facts
          WHERE project = ?
          ORDER BY score DESC

@@ -27,8 +27,14 @@ Wantan receives development request
      NO  → dispatch Byakuya for Phase 1.5
      YES (VALID) → continue
      YES (NEEDS REVISION) → route back to Lelouch, then re-validate
+  5.5. RESEARCH ARTIFACT GATE (if UI Classification = YES):
+       - Has Wiz saved a research briefing to vault/03-research/?
+         NO  → dispatch Wiz for Phase 1.75. Do NOT proceed to Phase 2.
+         YES → verify file has frontmatter (title, created, type: research, tags).
+               If malformed → route back to Wiz to fix.
+               If valid → continue. Inject file path into Rohan's dispatch.
   6. Dispatch Phase 2 in parallel (all that apply):
-     - IF task has UI → dispatch Rohan (design specs)
+     - IF task has UI → dispatch Rohan (design specs, with vault/03-research/ file path)
      - IF task touches 3+ modules → dispatch Senku (architecture review)
      - ALWAYS dispatch Killua (write failing tests from spec)
      - IF task has backend → dispatch Conan (DB + API only, frontend blocked)

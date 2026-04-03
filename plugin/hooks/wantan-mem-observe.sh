@@ -22,7 +22,7 @@ if [[ "$TOOL_NAME" == *"wantan-mem"* ]] || [[ "$TOOL_NAME" == "Read" ]] || [[ "$
   exit 0
 fi
 
-# Build meaningful content from tool input + output
+# Build meaningful content from tool input + output, with proper JSON escaping
 CONTENT=$(echo "$INPUT" | python3 -c "
 import sys, json
 try:
@@ -56,9 +56,10 @@ try:
     else:
         content = f'{tool}: {json.dumps(tool_input)[:150]}'
 
-    print(content)
+    # Escape for safe JSON embedding
+    print(json.dumps(content)[1:-1])
 except:
-    print(f'Tool: {sys.argv[0] if len(sys.argv) > 0 else \"unknown\"}')
+    print(f'Tool: unknown')
 " 2>/dev/null)
 
 # Determine agent from context (Agent tool dispatches carry subagent_type)
@@ -84,14 +85,21 @@ except:
     print('wantan')
 " 2>/dev/null)
 
+# Escape project name for JSON
+PROJECT=$(python3 -c "
+import json, os
+print(json.dumps(os.path.basename(os.getcwd()))[1:-1])
+" 2>/dev/null)
+
 # Default to wantan if empty
 AGENT="${AGENT:-wantan}"
 CONTENT="${CONTENT:-Tool: $TOOL_NAME}"
+PROJECT="${PROJECT:-unknown}"
 
 # POST to worker (fire and forget, 2s timeout)
 curl -s -X POST "$WORKER_URL/api/observe" \
   -H "Content-Type: application/json" \
-  -d "{\"type\":\"tool_use\",\"agent\":\"$AGENT\",\"content\":\"$CONTENT\",\"project\":\"$(basename $(pwd))\"}" \
+  -d "{\"type\":\"tool_use\",\"agent\":\"$AGENT\",\"content\":\"$CONTENT\",\"project\":\"$PROJECT\"}" \
   --connect-timeout 2 --max-time 2 \
   > /dev/null 2>&1 || true
 

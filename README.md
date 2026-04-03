@@ -8,7 +8,7 @@
 
 **14 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-14-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -827,6 +827,21 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v1.1.0
+
+**Memory retrieval fixes and research workflow enforcement.**
+
+- **Research .md-first rule** — Wiz now MUST save research to `vault/03-research/` as markdown with frontmatter before passing to downstream agents or generating artifacts (slides, proposals). Rohan rejects inline-only briefings without a vault file.
+- **Research artifact quality gate** — New gate (step 5.5) validates research .md file exists before Phase 2 dispatch. No more orphaned slide decks without searchable source docs.
+- **wantan-mem L1 index auto-rebuild** — Memory index now rebuilds automatically every 10 facts and on session end. Previously required manual `POST /api/facts/rebuild-index` and was always empty.
+- **Session-start memory injection** — Session start hook now queries wantan-mem and injects L1 summary + high-priority facts as context via stdout. Previous sessions' work is now surfaced automatically.
+- **Recency decay in fact ranking** — Index ranking now uses `score = importance * access_boost * 0.995^hours` (half-life ~6 days). Stale facts naturally drop out of the L1 summary.
+- **MCP server callWorker fix** — `fetch()` now passes the options object (method, headers, body were silently discarded).
+- **JSON escaping in observe hook** — Content and project name now properly escaped via `json.dumps()`, preventing silent data loss on special characters.
+- **Checkpoint hook** — PreCompact hook now triggers L1 index rebuild before compaction (was a no-op).
+- **Vault retrieval wantan-mem integration** — Vault retrieval now queries wantan-mem in parallel with local search for all query types, not just "historical pattern" queries.
+- **`/today` Memory Synthesis** — Step 14 now uses correct MCP tool names (`mem_index`, `mem_facts`) instead of non-existent `smart_search`.
 
 ### v1.0.0
 - **14 anime agents** — Wantan (Captain), Diablo (Code Review), Killua (Testing), Itachi (Security), Shikamaru (DevOps), L (Docs), Kazuma (Sprint), Wiz (Research), Senku (Architect), Sai (Dashboard), Byakuya (Auditor), Conan (Full-Stack), Rohan (UI/Design), Lelouch (Spec), Megumin (Slides)

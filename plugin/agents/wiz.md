@@ -116,7 +116,27 @@ When dispatched for design research before Rohan's design phase:
 - {what couldn't be found}
 ```
 
-This briefing is passed directly to Rohan as context for his design phase.
+### Vault Persistence Rule (Mandatory)
+
+**ALL research output MUST be saved to `vault/03-research/` as a markdown file BEFORE being passed to any downstream agent or used to generate artifacts (slides, proposals, decks).**
+
+1. Save the research briefing to `vault/03-research/{topic}-research.md` (or `{topic}-design-research.md` for design research)
+2. The file MUST include frontmatter:
+   ```yaml
+   ---
+   title: "{Research Topic}"
+   created: {YYYY-MM-DD}
+   type: research
+   tags: [research, {topic-tags}]
+   status: active
+   related: []
+   ---
+   ```
+3. Only AFTER the .md file is saved, pass the briefing content to the requesting agent (Rohan, Lelouch, etc.)
+4. Only AFTER the .md file is saved, generate derivative artifacts (PPTX, HTML, PDF) — these artifacts MUST reference the source .md file in their generation script or metadata
+5. If generating slides or proposals, the .md research file is the **source of truth** — artifacts are generated FROM it, not independently
+
+**Why**: Research that exists only as conversation context or slide artifacts is invisible to vault search, unretrievable in future sessions, and lost when context compacts. The .md file ensures research is findable, auditable, and reusable.
 
 ## Data Sources
 
@@ -127,7 +147,18 @@ This briefing is passed directly to Rohan as context for his design phase.
 
 ## Output Format
 
+All research output MUST be saved to `vault/03-research/` as .md before delivery. See "Vault Persistence Rule" above.
+
 ```markdown
+---
+title: "Research Briefing: {Topic}"
+created: {YYYY-MM-DD}
+type: research
+tags: [research, {topic-tags}]
+status: active
+related: []
+---
+
 ## Research Briefing: {Topic}
 
 ### Key Findings

@@ -107,8 +107,10 @@ If no unprocessed items found: output "No overnight findings. Moving to daily br
    - Keep this to 1-2 lines max — it's a status light, not a deep dive.
 
 14. **Memory Synthesis** (requires wantan-mem MCP — skip if not configured):
-    - If wantan-mem MCP is available, use `smart_search` with today's date context to surface relevant cross-session patterns, blockers, or open threads.
-    - Present grounded observations under a "**Memory Synthesis**" header in the briefing.
-    - If wantan-mem is unavailable, skip silently.
+    - If wantan-mem MCP is available:
+      1. Call `mem_index` with the current project name to get the L1 project summary (~500 tokens).
+      2. Call `mem_facts` with `query: "*"`, `project: <current_project>`, `limit: 10` to get the most recent distilled facts.
+      3. If either returns meaningful content, present under a "**Memory Synthesis**" header: key facts, open threads, and any blockers from previous sessions.
+    - If wantan-mem is unavailable or returns no results, skip silently.
 
 Present everything in a clean dashboard format. Be concise — this is a daily glance, not a deep dive.

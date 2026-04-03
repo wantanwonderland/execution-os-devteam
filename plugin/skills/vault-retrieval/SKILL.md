@@ -26,6 +26,16 @@ Before executing the linear search, classify {{OWNER_NAME}}'s query:
 
 If classification is uncertain, default to linear search. Never block on wantan-mem — if MCP is unavailable, skip to local search.
 
+## wantan-mem Integration (All Query Types)
+
+**Always query wantan-mem in parallel with local search**, regardless of query classification. This catches conversations and work that never produced vault files.
+
+1. Call `mem_facts` with the query keywords + `project: <current_project>` to search distilled facts.
+2. Call `search` with the query keywords + `project: <current_project>` to search raw observations.
+3. If local vault search returns empty but wantan-mem has results, **use wantan-mem results as the primary response** — don't report "nothing found."
+4. If both return results, merge them — mark wantan-mem hits with `[wantan-mem]` to distinguish from local vault hits.
+5. If wantan-mem is unavailable, continue with local search only (no error).
+
 ## Search Strategy (Linear — Default Fallback)
 1. **Tags first**: Search `tags` arrays in frontmatter across all `.md` files
 2. **Titles second**: Search `title` fields in frontmatter

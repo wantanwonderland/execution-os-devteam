@@ -143,6 +143,14 @@ export function createRoutes(db: Database.Database): Router {
         return;
       }
       const session = sessionStore.end(active.id, summary);
+
+      // Auto-rebuild L1 memory index on session end
+      try {
+        factStore.rebuildIndex(active.project);
+      } catch {
+        // Non-fatal — don't fail session end if index rebuild fails
+      }
+
       res.json(session);
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
