@@ -8,7 +8,7 @@
 
 **14 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-1.1.2-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-1.1.3-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-14-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -827,6 +827,10 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v1.1.3
+
+- **Megumin blocked by Rohan** — Megumin now requires Rohan's design direction (colors, fonts, aesthetic tone) before building slide decks. Added to routing table with Rohan dependency and Step 0 validation in Megumin's agent definition. All visual artifact agents (Megumin, Sai, Conan frontend) must wait for Rohan.
 
 ### v1.1.2
 

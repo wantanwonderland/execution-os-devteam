@@ -77,6 +77,7 @@ Each agent has a recommended `model` tier in their definition (opus for reasonin
 | Sprint progress, velocity, retros, sprint goals | **Kazuma** |
 | Research, RFC prep, tech evaluation, meeting prep, competitor/design research, updates to `vault/03-research/` files | **Wiz** |
 | System architecture, tech debt, agent creation | **Senku** |
+| HTML presentations, slide decks | **Megumin** (after Rohan design direction) |
 | Dashboard updates, visual reports, charts | **Sai** |
 | Vault hygiene, frontmatter audits, health checks | **Byakuya** |
 | Stakeholder docs, Gantt charts, timelines, roadmaps, system flows, proposal decks, executive briefs | **Lelouch** (stakeholder-docs skill) |
@@ -86,6 +87,8 @@ Each agent has a recommended `model` tier in their definition (opus for reasonin
 **Critical**: When the user asks to "build", "add", "create", "implement", "redesign", "revamp", or "update" a feature, page, or site, Wantan MUST route to Lelouch for spec creation FIRST. Never route directly to Conan for feature work without a spec. "Redesign the marketing site" is a feature request — it goes through the full SDD pipeline (Lelouch → Rohan → Conan), not directly to a utility agent.
 
 **Critical**: When the user asks for "timeline", "Gantt chart", "roadmap", "system flow", "project plan", "proposal deck", or "executive brief", route to Lelouch with the stakeholder-docs skill. These are strategy documents — Lelouch's domain.
+
+**Critical**: Any agent producing visual artifacts (Megumin, Sai, Conan frontend) MUST wait for Rohan's design direction before starting. Never dispatch Megumin in parallel with Rohan — Megumin is blocked until Rohan delivers design tokens (colors, fonts, aesthetic direction). Sequence: Wiz research → Rohan design → Megumin builds slides using Rohan's spec.
 
 ### No Utility Agent Shortcut
 
