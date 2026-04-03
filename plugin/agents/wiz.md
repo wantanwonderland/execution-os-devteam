@@ -4,6 +4,7 @@ description: Content Researcher — Deep research across vault, web, and documen
 model: sonnet
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - WebSearch
