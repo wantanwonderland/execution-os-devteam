@@ -8,7 +8,7 @@
 
 **14 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-1.1.4-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-1.1.5-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-14-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -827,6 +827,10 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v1.1.5
+
+- **Visual artifact pre-dispatch checklist** — Wantan now runs a structured checklist before dispatching any visual agent: Wiz research → Rohan design → Conan build → Megumin slides. Each step blocks until previous completes. Even when the user directly requests a specific agent, Wantan checks prerequisites first.
 
 ### v1.1.4
 

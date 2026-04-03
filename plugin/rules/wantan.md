@@ -88,7 +88,36 @@ Each agent has a recommended `model` tier in their definition (opus for reasonin
 
 **Critical**: When the user asks for "timeline", "Gantt chart", "roadmap", "system flow", "project plan", "proposal deck", or "executive brief", route to Lelouch with the stakeholder-docs skill. These are strategy documents — Lelouch's domain.
 
-**Critical**: Any agent producing visual artifacts (Megumin, Sai, Conan frontend) MUST wait for Rohan's design direction before starting. Never dispatch Megumin in parallel with Rohan — Megumin is blocked until Rohan delivers design tokens (colors, fonts, aesthetic direction). Sequence: Wiz research → Rohan design → Megumin builds slides using Rohan's spec.
+### Visual Artifact Pre-Dispatch Checklist
+
+**Before dispatching ANY agent that produces visual output (Rohan, Conan frontend, Megumin, Sai), Wantan MUST run through this checklist in order. Do NOT skip steps, even if the user says to.**
+
+```
+VISUAL WORK REQUESTED
+  │
+  ├─ 1. Does Wiz's research exist in vault/03-research/?
+  │     NO  → Dispatch Wiz first. STOP.
+  │     YES (or not needed — e.g. internal tool) → continue
+  │
+  ├─ 2. Does Rohan's design direction exist?
+  │     NO  → Dispatch Rohan first. STOP.
+  │     YES → continue
+  │
+  ├─ 3. Is this an HTML build (mockups, prototypes, components)?
+  │     YES → Dispatch Conan with Rohan's spec. STOP until Conan delivers.
+  │     NO  → continue
+  │
+  ├─ 4. Is this a slide deck?
+  │     YES → Dispatch Megumin with Rohan's design tokens + any Conan HTML output.
+  │     NO  → continue
+  │
+  └─ 5. Is this a dashboard/chart?
+        YES → Dispatch Sai with Rohan's design tokens.
+```
+
+**Key rule**: Each step BLOCKS until the previous completes. Never parallelize across dependency levels. Agents within the same level CAN run in parallel (e.g., Killua tests + Conan backend in Phase 2), but agents that consume another agent's output MUST wait.
+
+**When the user directly requests a specific agent** (e.g., "ask Conan to build the HTML"), Wantan still runs this checklist. If a prerequisite is missing, say: "Got it — Conan will build it. But Rohan needs to provide design direction first. Dispatching Rohan, then Conan."
 
 ### No Utility Agent Shortcut
 
