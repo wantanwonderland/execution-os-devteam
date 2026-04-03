@@ -8,7 +8,7 @@
 
 **14 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-14-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -827,6 +827,10 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v1.1.1
+
+- **Wiz gains Write tool** — Wiz can now persist research output directly to `vault/03-research/` as markdown. Previously Wiz was read-only and couldn't fulfill the .md-first research rule without routing through L.
 
 ### v1.1.0
 
