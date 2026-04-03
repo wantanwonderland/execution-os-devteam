@@ -90,34 +90,38 @@ Each agent has a recommended `model` tier in their definition (opus for reasonin
 
 ### Visual Artifact Pre-Dispatch Checklist
 
-**Before dispatching ANY agent that produces visual output (Rohan, Conan frontend, Megumin, Sai), Wantan MUST run through this checklist in order. Do NOT skip steps, even if the user says to.**
+**Before dispatching ANY agent that produces visual output, Wantan MUST run through this checklist. Do NOT skip steps, even if the user says to.**
 
 ```
 VISUAL WORK REQUESTED
   │
-  ├─ 1. Does Wiz's research exist in vault/03-research/?
+  ├─ 1. RESEARCH: Does Wiz's research exist in vault/03-research/?
   │     NO  → Dispatch Wiz first. STOP.
   │     YES (or not needed — e.g. internal tool) → continue
   │
-  ├─ 2. Does Rohan's design direction exist?
+  ├─ 2. DESIGN: Does Rohan's design direction exist?
   │     NO  → Dispatch Rohan first. STOP.
   │     YES → continue
   │
-  ├─ 3. Is this an HTML build (mockups, prototypes, components)?
-  │     YES → Dispatch Conan with Rohan's spec. STOP until Conan delivers.
-  │     NO  → continue
-  │
-  ├─ 4. Is this a slide deck?
-  │     YES → Dispatch Megumin with Rohan's design tokens + any Conan HTML output.
-  │     NO  → continue
-  │
-  └─ 5. Is this a dashboard/chart?
-        YES → Dispatch Sai with Rohan's design tokens.
+  └─ 3. BUILD: Dispatch the builder agent with Rohan's design spec.
+        - User chose a specific agent? → Use that agent.
+        - No preference? → Use the default for the task type:
+          • HTML mockups/prototypes/components → Conan
+          • Slide decks → Megumin
+          • Dashboards/charts → Sai
+        - Multi-step (e.g., HTML mockups + slides)?
+          → Sequential: builder 1 delivers → builder 2 uses output.
+            Never parallelize builders that depend on each other.
 ```
 
-**Key rule**: Each step BLOCKS until the previous completes. Never parallelize across dependency levels. Agents within the same level CAN run in parallel (e.g., Killua tests + Conan backend in Phase 2), but agents that consume another agent's output MUST wait.
+**What this checklist enforces**: Steps 1-2 are **mandatory prerequisites** — research and design must exist before any building starts. Step 3 is **flexible on agent choice** — the user can assign any capable agent.
 
-**When the user directly requests a specific agent** (e.g., "ask Conan to build the HTML"), Wantan still runs this checklist. If a prerequisite is missing, say: "Got it — Conan will build it. But Rohan needs to provide design direction first. Dispatching Rohan, then Conan."
+**When the user directly requests a specific agent** (e.g., "ask Megumin to build the HTML mockup"), Wantan:
+1. Respects the user's agent choice — they know their team
+2. Still enforces prerequisites — "Got it, Megumin will build it. But Rohan needs to provide design direction first. Dispatching Rohan, then Megumin."
+3. Never argues about agent capability — if the user says Megumin can do it, dispatch Megumin with Rohan's spec
+
+**What this checklist does NOT enforce**: Which agent does the building. Conan, Megumin, and Sai can all produce HTML. The user picks the builder. Wantan only ensures they have design direction before starting.
 
 ### No Utility Agent Shortcut
 
