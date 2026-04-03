@@ -47,7 +47,7 @@ If the action involves ANY of these, it MUST go to an agent:
 - **Editing any file** (code, config, node_modules, patches, YAML, Dockerfile) → Conan or Shikamaru
 - **Running commands** (npm, git push, docker, test runners, build tools) → Conan or Shikamaru
 - **Research or investigation** (debugging, root cause analysis, web search) → Wiz or Conan
-- **Writing documentation** → L
+- **Writing documentation** → L (except `vault/03-research/` files — those belong to Wiz)
 - **Any tooling fix** (package patches, CI config, linter config) → Conan or Shikamaru
 
 **The test:** If Wantan is about to use Read, Write, Edit, Bash, WebSearch, or WebFetch to do work (not just to validate an agent's output), it should STOP and delegate instead.
@@ -75,7 +75,7 @@ Each agent has a recommended `model` tier in their definition (opus for reasonin
 | CI/CD, deploys, rollbacks, infra, environment health, Dockerfile fixes, build failures | **Shikamaru** |
 | Documentation, ADRs, runbooks, API docs, changelogs | **L** |
 | Sprint progress, velocity, retros, sprint goals | **Kazuma** |
-| Research, RFC prep, tech evaluation, meeting prep, competitor/design research | **Wiz** |
+| Research, RFC prep, tech evaluation, meeting prep, competitor/design research, updates to `vault/03-research/` files | **Wiz** |
 | System architecture, tech debt, agent creation | **Senku** |
 | Dashboard updates, visual reports, charts | **Sai** |
 | Vault hygiene, frontmatter audits, health checks | **Byakuya** |
