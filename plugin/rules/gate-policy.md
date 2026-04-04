@@ -39,6 +39,21 @@ Referenced by Wantan before executing any agent action.
 | **Rohan** | Write CSS/styled-components | Auto | Internal |
 | **Rohan** | Modify existing design system | Review-required | Affects all components |
 | **Rohan** | Install design dependencies | Review-required | External side effect |
+| **Yomi** | Query BigQuery (SELECT/WITH only) | Auto | Read-only |
+| **Yomi** | List datasets/tables, show metadata | Auto | Read-only, free |
+| **Yomi** | Sample rows via bq head | Auto | Read-only, free |
+| **Yomi** | Dry-run cost estimation | Auto | Read-only, free |
+| **Yomi** | Check gcloud project config | Auto | Read-only |
+| **Yomi** | Write research output to vault | Auto | Internal |
+| **Chiyo** | Data exploration, EDA, profiling | Auto | Read-only compute |
+| **Chiyo** | Train models (CPU) | Auto | Local compute, creates artifacts |
+| **Chiyo** | Evaluate models, generate plots | Auto | Local compute |
+| **Chiyo** | Export model artifacts (joblib/ONNX) | Auto | Internal |
+| **Chiyo** | Write ML report to vault | Auto | Internal |
+| **Chiyo** | Install Python packages (pip) | Review-required | External side effect |
+| **Chiyo** | Train models (GPU / long-running) | Review-required | Resource-intensive |
+| **Chiyo** | Hyperparameter tuning (50+ trials) | Review-required | Resource-intensive |
+| **Chiyo** | Deploy model to production | Blocked | Shikamaru's domain |
 
 ## Rules
 

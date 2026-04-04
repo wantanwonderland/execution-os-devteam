@@ -6,10 +6,10 @@
 
 ### Your AI Engineering Squad. Zero Config. Zero Dependencies.
 
-**14 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, and write documentation — orchestrated by a single captain through natural conversation.
+**16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-1.1.7-blue)](#whats-new)
-[![Agents](https://img.shields.io/badge/agents-14-blue)](#the-squad)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue)](#whats-new)
+[![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
 [![License](https://img.shields.io/badge/license-MIT-purple)](LICENSE)
@@ -35,6 +35,10 @@
 <td align="center"><img src="assets/agents/rohan.png" width="60"/><br/><b>Rohan</b><br/><sub>UI/Design</sub></td>
 <td align="center"><img src="assets/agents/lelouch.png" width="60"/><br/><b>Lelouch</b><br/><sub>Spec Strategist</sub></td>
 <td align="center"><img src="assets/agents/megumin.png" width="60"/><br/><b>Megumin</b><br/><sub>Slides</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="assets/agents/yomi.png" width="60"/><br/><b>Yomi</b><br/><sub>BigQuery</sub></td>
+<td align="center"><img src="assets/agents/chiyo.png" width="60"/><br/><b>Chiyo</b><br/><sub>ML Engineer</sub></td>
 </tr>
 </table>
 
@@ -174,6 +178,8 @@ Wantan is strictly an orchestrator. He never writes code, runs tests, or fixes b
 | "sprint review", "velocity", "standup" | **Kazuma** |
 | "research X", "evaluate Y vs Z" | **Wiz** |
 | "design the UI", "aesthetic direction" | **Rohan** |
+| "query BigQuery", "validate dashboard data", "data profiling" | **Yomi** |
+| "train a model", "ML", "feature engineering", "EDA" | **Chiyo** |
 | "system architecture", "hire new agent" | **Senku** |
 | "project timeline", "Gantt chart", "roadmap", "system flow", "proposal deck" | **Lelouch** (stakeholder-docs skill) |
 
@@ -399,6 +405,19 @@ See real examples of Execution-OS in action:
 </tr>
 </table>
 
+### Data & ML
+
+<table>
+<tr>
+<td width="80" align="center"><img src="assets/agents/yomi.png" width="64"/></td>
+<td><b>Yomi</b> — <i>BigQuery Data Analyst</i> (Azumanga Daioh)<br/>Read-only BigQuery research: schema exploration, data profiling, dashboard validation, cross-table analysis, gap detection, anomaly detection. Always dry-runs before expensive queries. Never modifies data — only reads, analyzes, and reports.</td>
+</tr>
+<tr>
+<td width="80" align="center"><img src="assets/agents/chiyo.png" width="64"/></td>
+<td><b>Chiyo</b> — <i>Machine Learning Engineer</i> (Azumanga Daioh)<br/>Full ML lifecycle: EDA, feature engineering, model training, hyperparameter tuning, evaluation, and export. Enforces proper train/test splits, pipeline-based preprocessing, and comprehensive evaluation metrics. 10 hard rules prevent data leakage, overfitting, and cherry-picked metrics. Never deploys — that's Shikamaru's domain.</td>
+</tr>
+</table>
+
 ### Planning & Strategy
 
 <table>
@@ -497,7 +516,7 @@ See real examples of Execution-OS in action:
 ## Architecture
 
 ```
-You ──> Wantan (orchestrator) ──> 13 Specialized Agents
+You ──> Wantan (orchestrator) ──> 15 Specialized Agents
                 │                        │
                 ├── wantan-mem           ├── GitHub (via gh CLI)
                 │   (cross-session      ├── Playwright (browser tests)
@@ -545,6 +564,8 @@ Every agent has hard constraints that cannot be bypassed:
 | Shikamaru | Classifies every fix as Permanent/Temporary/Workaround |
 | Killua | Reports full test matrix — no cherry-picked passes, no partial suites |
 | Diablo | Never approves without actual build output + passing test output as proof |
+| Yomi | Read-only — never creates, modifies, or deletes any BigQuery resource |
+| Chiyo | Never deploys models — trains, evaluates, exports only. Never preprocesses outside Pipeline. |
 
 ### Memory System (wantan-mem)
 
@@ -805,7 +826,7 @@ Designed to minimize cost:
 execution-os-devteam/
 ├── .claude-plugin/           # Marketplace manifest
 ├── plugin/                   # AI LAYER (auto-updates)
-│   ├── agents/        (13)   # The squad
+│   ├── agents/        (15)   # The squad
 │   ├── commands/      (33)   # Slash commands
 │   ├── skills/        (55)   # Agent capabilities
 │   ├── rules/         (17)   # System policies
@@ -827,6 +848,16 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v1.2.0
+
+**Two new Azumanga Daioh agents: BigQuery + Machine Learning.**
+
+- **Yomi — BigQuery Data Analyst** — Read-only BQ research agent. Schema exploration, data profiling, dashboard validation, cross-table analysis, time-series gap detection, anomaly detection. Mandatory project context check before querying. Cost-conscious: dry-runs first, `--maximum_bytes_billed` on every query. Never modifies data.
+- **Chiyo — Machine Learning Engineer** — Full ML lifecycle agent. EDA, feature engineering, model training (scikit-learn, XGBoost, LightGBM, CatBoost), hyperparameter tuning (Optuna), evaluation, SHAP explainability, model export (joblib/ONNX). 10 hard anti-pattern rules prevent data leakage, training on test data, and cherry-picked metrics. Coordinates with Yomi for BigQuery data access.
+- **Agent count**: 14 → 16
+- **Gate policy**: Added 16 new gate rules for Yomi (6, all Auto) and Chiyo (10, mixed Auto/Review-required/Blocked)
+- **Routing tables**: Updated in wantan.md, vault/CLAUDE.md, and roster.md
 
 ### v1.1.7
 
@@ -872,7 +903,7 @@ execution-os-devteam/
 - **`/today` Memory Synthesis** — Step 14 now uses correct MCP tool names (`mem_index`, `mem_facts`) instead of non-existent `smart_search`.
 
 ### v1.0.0
-- **14 anime agents** — Wantan (Captain), Diablo (Code Review), Killua (Testing), Itachi (Security), Shikamaru (DevOps), L (Docs), Kazuma (Sprint), Wiz (Research), Senku (Architect), Sai (Dashboard), Byakuya (Auditor), Conan (Full-Stack), Rohan (UI/Design), Lelouch (Spec), Megumin (Slides)
+- **14 anime agents at launch** — Wantan (Captain), Diablo (Code Review), Killua (Testing), Itachi (Security), Shikamaru (DevOps), L (Docs), Kazuma (Sprint), Wiz (Research), Senku (Architect), Sai (Dashboard), Byakuya (Auditor), Conan (Full-Stack), Rohan (UI/Design), Lelouch (Spec), Megumin (Slides)
 - **Spec-Driven Development pipeline** — Lelouch spec → Byakuya validation → Rohan design + Killua tests (parallel) → Conan implementation → Diablo review → Shikamaru deploy. Structural enforcement via hooks.
 - **Markdown-first html-slides** — Megumin writes `slides.md` (canonical source), renders to HTML via reveal.js + Tailwind + Chart.js + Mermaid CDN stack. Re-renderable to PPTX or PDF.
 - **Stakeholder docs skill** — Gantt charts, system flows, sequence diagrams, architecture diagrams, roadmaps, interactive timelines, executive briefs, proposal decks, project plan spreadsheets.

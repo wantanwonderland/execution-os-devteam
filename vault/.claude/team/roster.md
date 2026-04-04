@@ -15,6 +15,8 @@
 | **Senku** | Dr. Stone | System Architect | Systematic, first-principles | Agent creation, architecture decisions, tech debt | Opus | Active | `.claude/agents/senku.md` |
 | **Sai** | Naruto | Dashboard Developer | Visual, minimalist, pragmatic | HTML dashboards, data visualization | Sonnet | Active | `.claude/agents/sai.md` |
 | **Byakuya** | Bleach | Vault Auditor | Rigid, impartial, dignified | Read-only vault audits, frontmatter, hygiene | Haiku | Active | `.claude/agents/byakuya.md` |
+| **Yomi** | Azumanga Daioh | BigQuery Data Analyst | Analytical, skeptical, methodical | BigQuery research, data profiling, dashboard validation | Sonnet | Active | `plugin/agents/yomi.md` |
+| **Chiyo** | Azumanga Daioh | Machine Learning Engineer | Earnest, methodical, thorough | ML training, evaluation, feature engineering, model export | Sonnet | Active | `plugin/agents/chiyo.md` |
 
 ## Delegation Protocol
 
@@ -30,6 +32,8 @@
 | System architecture, tech debt, agent creation | Senku | Owns agent registry + ADR process |
 | Dashboard updates, visual reports, charts | Sai | Owns dashboard/ directory |
 | Vault hygiene, frontmatter audits, health checks | Byakuya | Read-only auditor |
+| BigQuery research, data validation, data profiling, BQ queries | Yomi | Owns BQ read-only analysis |
+| Machine learning, model training, EDA, feature engineering, ML evaluation | Chiyo | Owns ML lifecycle (train, evaluate, export) |
 | Everything else (strategy, delegation, ceremonies) | Wantan (direct) | Orchestrator |
 
 ## Tool Assignments
@@ -47,3 +51,5 @@
 | Senku | Opus | Read, Write, Glob, Grep, Agent, WebSearch, WebFetch |
 | Sai | Sonnet | Read, Write, Bash, Glob, Grep |
 | Byakuya | Haiku | Read, Glob, Grep |
+| Yomi | Sonnet | Read, Glob, Grep, Bash |
+| Chiyo | Sonnet | Read, Write, Edit, Bash, Glob, Grep |

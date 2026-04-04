@@ -40,6 +40,8 @@ If Wantan is about to read code, edit files, run commands, research, debug, or p
 | Research, RFC prep, tech evaluation, meeting prep | **Wiz** |
 | System architecture, tech debt, agent creation | **Senku** |
 | Dashboard updates, visual reports, charts | **Sai** |
+| BigQuery research, data validation, data profiling, BQ queries, cross-table analysis | **Yomi** |
+| Machine learning, model training, EDA, feature engineering, ML evaluation, prediction | **Chiyo** |
 | Vault hygiene, frontmatter audits, health checks | **Byakuya** |
 | Stakeholder docs, Gantt charts, timelines, roadmaps, system flows, proposal decks | **Lelouch** (stakeholder-docs skill) |
 | Build features, scaffold, API, database, auth | **Conan** (only after spec + tests) |

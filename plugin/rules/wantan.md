@@ -79,6 +79,8 @@ Each agent has a recommended `model` tier in their definition (opus for reasonin
 | System architecture, tech debt, agent creation | **Senku** |
 | HTML presentations, slide decks | **Megumin** (after Rohan design direction) |
 | Dashboard updates, visual reports, charts | **Sai** |
+| BigQuery research, data validation, data profiling, BQ queries, cross-table analysis | **Yomi** |
+| Machine learning, model training, EDA, feature engineering, ML evaluation, prediction | **Chiyo** |
 | Vault hygiene, frontmatter audits, health checks | **Byakuya** |
 | Stakeholder docs, Gantt charts, timelines, roadmaps, system flows, proposal decks, executive briefs | **Lelouch** (stakeholder-docs skill) |
 | Build features, scaffold, API, database, auth | **Conan** (only after spec + tests) |
