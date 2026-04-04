@@ -151,6 +151,22 @@ export class FactStore {
   }
 
   /**
+   * Sanitize a query string for FTS5 MATCH.
+   * Converts multi-word queries to OR terms so any matching word returns results.
+   * Strips FTS5 special characters to prevent syntax errors.
+   */
+  private sanitizeFtsQuery(query: string): string {
+    // Strip FTS5 operators and special chars that cause syntax errors
+    const cleaned = query.replace(/[*"(){}[\]^~:]/g, '').trim();
+    // Split into words, filter empties
+    const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return '""';
+    if (words.length === 1) return words[0];
+    // Join with OR so any matching word returns results
+    return words.join(' OR ');
+  }
+
+  /**
    * Search facts using FTS5 full-text search.
    */
   search(query: string, options: FactSearchOptions = {}): FactSearchResult[] {
@@ -182,7 +198,8 @@ export class FactStore {
       return this.db.prepare(sql).all(params) as FactSearchResult[];
     }
 
-    // FTS query
+    // FTS query — sanitize to OR terms so multi-word queries find partial matches
+    const ftsQuery = this.sanitizeFtsQuery(query);
     let sql = `
       SELECT
         f.id, f.category, f.content, f.importance, f.project, f.agent, f.tags,
@@ -191,7 +208,7 @@ export class FactStore {
       JOIN facts f ON f.id = fts.rowid
       WHERE facts_fts MATCH @query
     `;
-    const params: Record<string, unknown> = { query, limit };
+    const params: Record<string, unknown> = { query: ftsQuery, limit };
 
     if (project) {
       sql += ' AND f.project = @project';

@@ -5,6 +5,19 @@ export class SearchEngine {
   constructor(private db: Database.Database) {}
 
   /**
+   * Sanitize a query string for FTS5 MATCH.
+   * Converts multi-word queries to OR terms so any matching word returns results.
+   * Strips FTS5 special characters to prevent syntax errors.
+   */
+  private sanitizeFtsQuery(query: string): string {
+    const cleaned = query.replace(/[*"(){}[\]^~:]/g, '').trim();
+    const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return '""';
+    if (words.length === 1) return words[0];
+    return words.join(' OR ');
+  }
+
+  /**
    * Layer 1: Search — returns compact index with IDs (~50-100 tokens/result)
    */
   search(query: string, options: {
@@ -45,6 +58,7 @@ export class SearchEngine {
       return this.db.prepare(sql).all(params) as SearchResult[];
     }
 
+    const ftsQuery = this.sanitizeFtsQuery(query);
     let sql = `
       SELECT
         o.id,
@@ -58,7 +72,7 @@ export class SearchEngine {
       JOIN observations o ON o.id = fts.rowid
       WHERE observations_fts MATCH @query
     `;
-    const params: Record<string, unknown> = { query, limit, offset };
+    const params: Record<string, unknown> = { query: ftsQuery, limit, offset };
 
     if (project) {
       sql += ' AND o.project = @project';

@@ -8,7 +8,7 @@
 
 **14 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-1.1.6-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-1.1.7-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-14-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -827,6 +827,10 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v1.1.7
+
+- **Fix FTS5 multi-word query failure** — `mem_facts` and `search` now convert multi-word queries to OR terms (e.g., `login auth method` → `login OR auth OR method`). Previously, multi-word queries required ALL words in a single fact, returning "No facts found" for queries like "login auth authentication method" even when individual words matched.
 
 ### v1.1.6
 
