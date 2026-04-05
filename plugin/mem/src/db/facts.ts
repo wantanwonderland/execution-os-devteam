@@ -169,9 +169,10 @@ export class FactStore {
    */
   private sanitizeFtsQuery(query: string): string {
     // Strip FTS5 operators and special chars that cause syntax errors
-    const cleaned = query.replace(/[*"(){}[\]^~:]/g, '').trim();
-    // Split into words, filter empties
-    const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+    // Include hyphen (-) which FTS5 interprets as NOT operator
+    const cleaned = query.replace(/[*"(){}[\]^~:\-]/g, ' ').trim();
+    // Split into words, filter empties and very short tokens
+    const words = cleaned.split(/\s+/).filter(w => w.length > 1);
     if (words.length === 0) return '""';
     if (words.length === 1) return words[0];
     // Join with OR so any matching word returns results
