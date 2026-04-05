@@ -168,9 +168,11 @@ export class FactStore {
    * Strips FTS5 special characters to prevent syntax errors.
    */
   private sanitizeFtsQuery(query: string): string {
-    // Strip FTS5 operators and special chars that cause syntax errors
-    // Include hyphen (-) which FTS5 interprets as NOT operator
-    const cleaned = query.replace(/[*"(){}[\]^~:\-]/g, ' ').trim();
+    // Strip ALL non-alphanumeric characters except spaces.
+    // FTS5 treats many chars as operators: - (NOT), * (prefix), " (phrase),
+    // / (regex), ' (quote), : (column filter), ^ ~ () {} []
+    // Safest approach: whitelist only letters, numbers, and spaces.
+    const cleaned = query.replace(/[^a-zA-Z0-9\s]/g, ' ').trim();
     // Split into words, filter empties and very short tokens
     const words = cleaned.split(/\s+/).filter(w => w.length > 1);
     if (words.length === 0) return '""';
