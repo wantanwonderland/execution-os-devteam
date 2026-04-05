@@ -61,7 +61,20 @@ If the action involves ANY of these, it MUST go to an agent:
 
 ## Model Selection
 
-Each agent has a recommended `model` tier in their definition (opus for reasoning-heavy, sonnet for procedural, haiku for pattern matching). However, **always respect the user's global model selection**. Do NOT override the model when dispatching agents — let them inherit the session model.
+Each agent has a recommended `model` tier in their definition. To optimize cost, Wantan applies **tiered model routing**:
+
+### Haiku Agents (pattern-matching, checklist-driven — 3x cheaper than Sonnet)
+These agents MUST dispatch on Haiku regardless of session model:
+- **Byakuya** — spec validation is checklist matching, not reasoning
+- **L** — documentation writing from established patterns
+- **Kazuma** — sprint metrics are computation, not reasoning
+
+### Session Model Agents (inherit user's global selection)
+All other agents inherit the session model (Sonnet/Opus as configured):
+- Lelouch, Rohan, Conan, Killua, Diablo, Itachi, Shikamaru, Senku, Wiz, Sai, Megumin, Yomi, Chiyo
+
+### Override
+The user can override any agent's model tier inline: "dispatch Diablo on Opus for this review" or "use Haiku for everything this session."
 
 ## Agent Delegation Protocol
 
@@ -146,7 +159,7 @@ Wantan enforces this pipeline for ALL feature work. No phase is skipped. **Maxim
 
 ### Phase 1.5 — UI Classification Gate (Mandatory)
 
-After Lelouch's spec is approved and Byakuya validates, Wantan MUST read Lelouch's **UI Classification** field and enforce:
+After Lelouch's spec is approved (Lelouch self-validates; Byakuya dispatched only as fallback), Wantan MUST read Lelouch's **UI Classification** field and enforce:
 
 **If UI Classification = YES → Rohan is MANDATORY. No exceptions.**
 **If UI Classification = NO → verify the justification is valid. If doubtful, dispatch Rohan anyway.**
@@ -164,25 +177,26 @@ These always require Rohan:
 ### Pipeline Phases
 
 ```
-Phase 1:    Lelouch writes spec → USER CONFIRMS INTENT → user approves
-Phase 1.5:  Byakuya validates spec (Gate 1) + Wantan reads UI Classification
+Phase 1:    Lelouch writes spec (self-validates) → USER CONFIRMS INTENT → approved
+              Byakuya dispatched only as fallback if spec structure fails validation.
 Phase 1.75: Wiz design research (if UI Classification = YES)
               → competitor analysis, industry patterns, existing brand audit
-              → Wiz's briefing is passed directly to Rohan as input
+              → Wiz's briefing is passed directly to Rohan as structured handoff
 Phase 2:    ALL IN PARALLEL:
               - Rohan designs (MANDATORY if UI = YES, uses Wiz's research)
               - Senku reviews architecture (if 3+ modules)
               - Killua writes failing tests from spec
               - Conan starts backend (DB + API) — no need to wait for Rohan
-              - L drafts docs from spec
+              - Itachi runs dependency audit + SAST (catches security issues early)
               Phase 2 COMPLETE when ALL dispatched tracks report back.
               Conan frontend BLOCKED until Rohan + Killua both deliver.
 Phase 3:    Conan implements frontend (after Rohan delivers design spec)
-Phase 3.5:  Killua live tests → Conan fixes → repeat until pass
-              If spec gap found → escalate to Lelouch for revision
-Phase 4:    Diablo reviews → SURFACE VERDICT TO USER
-Phase 4.5:  Itachi security scan → SURFACE FINDINGS TO USER
-Phase 5:    USER CONFIRMS DEPLOY → Shikamaru deploys + L finalizes docs
+Phase 3.5:  Killua live tests ↔ Conan fixes via SendMessage (max 5 cycles)
+Phase 4:    Diablo reviews → SURFACE VERDICT TO USER (max 2 rounds)
+              Fix loops use SendMessage to existing Conan, not fresh dispatch.
+Phase 4.5:  Security gate check — verify Itachi's Phase 2 findings resolved.
+              Re-scan via SendMessage if new deps added in Phase 3-4.
+Phase 5:    L writes final docs + USER CONFIRMS DEPLOY → Shikamaru deploys
 ```
 
 **Phase 1.75 (Design Research)**: When UI Classification = YES, Wantan dispatches Wiz to research competitors, industry patterns, and existing brand BEFORE dispatching Rohan. Wiz's briefing is injected into Rohan's dispatch prompt. This ensures Rohan's design decisions are informed by the competitive landscape, not generated in a vacuum.
@@ -321,6 +335,20 @@ Wantan enforces quality gates at every agent dispatch. This is mandatory.
    - If only temporary options are presented, Wantan requires a follow-up plan: what makes it permanent and when.
    - A fix that gets wiped on `npm install`, `docker build`, CI reset, or new developer setup is NOT acceptable as a final answer without a persistence mechanism.
    - **Red flags to reject**: "patch node_modules" without postinstall, "SSH and restart" without automation, "set env var manually" without `.env.example`, "run this command once" without adding to setup docs/scripts.
+
+### Tool Result Truncation Policy
+
+To reduce token waste from verbose tool outputs, Wantan and all agents enforce these caps:
+
+| Tool | Max Output | Truncation Strategy |
+|------|-----------|-------------------|
+| **Bash** (build logs, test output) | 3,000 tokens | Keep first 500 + last 2,500 tokens. Replace middle with `[...{N} lines truncated...]` |
+| **Bash** (short commands: git, ls) | No cap | Full output |
+| **Read** (file contents) | Read only the needed section | Use `offset` + `limit` parameters. Never read entire large files. |
+| **Grep** | 50 matches max | Use `head_limit: 50`. For broader searches, use `files_with_matches` mode first. |
+| **Agent returns** (subagent output) | 2,000 tokens | Subagents should return structured summaries, not raw logs. Wantan's structured handoff templates enforce this. |
+
+**Why**: AgentDiet research shows 40-60% input token savings from removing redundant/expired tool results with negligible performance impact. Every token saved in tool output compounds across all 115+ daily dispatches.
 
 ### On Failure
 

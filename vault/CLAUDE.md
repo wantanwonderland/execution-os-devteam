@@ -53,26 +53,27 @@ If Wantan is about to read code, edit files, run commands, research, debug, or p
 
 ### SDD Pipeline (Spec-Driven Development)
 
-Wantan enforces this pipeline for ALL feature work. No phase is skipped. Maximize parallelism.
+Wantan enforces this pipeline for ALL feature work (Full SDD). For bug fixes / config changes (1-5 files), use Light SDD (Conan → Killua → Diablo, 3 dispatches). For single-file / docs-only, use Direct Dispatch (1 dispatch).
 
 Lelouch's spec MUST include a **UI Classification** field (YES/NO). If YES → Wiz researches competitors first, then Rohan designs.
 
 ```
-Phase 1:    Lelouch writes spec (with UI Classification) → USER CONFIRMS → approved
-Phase 1.5:  Byakuya validates spec + Wantan reads UI Classification
+Phase 1:    Lelouch writes spec (self-validates, Byakuya as fallback) → USER CONFIRMS
 Phase 1.75: Wiz design research (if UI = YES) → competitor analysis, industry patterns
 Phase 2:    ALL IN PARALLEL:
               - Rohan designs (MANDATORY if UI = YES, uses Wiz's research)
               - Senku reviews architecture (if 3+ modules)
               - Killua writes failing tests from spec
               - Conan starts backend (DB + API)
-              - L drafts docs from spec
+              - Itachi runs dependency audit + SAST (catches issues early)
 Phase 3:    Conan implements frontend (after Rohan delivers design spec)
-Phase 3.5:  Killua live tests → Conan fixes → repeat until pass
-Phase 4:    Diablo reviews → SURFACE VERDICT TO USER
-Phase 4.5:  Itachi security scan → SURFACE FINDINGS TO USER
-Phase 5:    USER CONFIRMS DEPLOY → Shikamaru deploys + L finalizes docs
+Phase 3.5:  Killua live tests ↔ Conan fixes via SendMessage (max 5 cycles)
+Phase 4:    Diablo reviews → SURFACE VERDICT TO USER (max 2 rounds, fixes via SendMessage)
+Phase 4.5:  Security gate check — verify Itachi's Phase 2 findings resolved
+Phase 5:    L writes final docs + USER CONFIRMS DEPLOY → Shikamaru deploys
 ```
+
+Cost optimizations: fix loops use SendMessage (continue existing agent, 100x cheaper). Context passes via structured handoffs (200-500 tokens). Agents write deliverables to `.claude/context/` bus files.
 
 No phase may be skipped. "It doesn't need design" is not valid if there's ANY visual component.
 

@@ -8,7 +8,7 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -522,10 +522,14 @@ You ──> Wantan (orchestrator) ──> 15 Specialized Agents
                 │   (cross-session      ├── Playwright (browser tests)
                 │    memory)            ├── SQLite DB (15 tables)
                 │                       └── Vault (markdown files)
+                ├── Context Bus
+                │   (.claude/context/)   Structured handoffs between phases
+                │                        200-500 tokens vs 5-20K raw output
                 └── Quality Gates
                     ├── Output validation (schema + refs + math)
                     ├── Human-in-the-loop (auto / review / blocked)
-                    └── Circuit breaker (retry + backoff + cooldown)
+                    ├── Circuit breaker (retry + backoff + cooldown)
+                    └── Cost optimization (SendMessage, Haiku routing, dispatch tiers)
 ```
 
 ### Quality Gates
@@ -533,7 +537,7 @@ You ──> Wantan (orchestrator) ──> 15 Specialized Agents
 Every feature and agent dispatch goes through 4 layers:
 
 **Layer 0: SDD Phase Gates (Hook-Enforced)**
-Spec must exist and be user-approved → Byakuya validates structure → Wiz researches competitors (if UI) → Rohan designs with competitor context → Killua + Conan backend run in parallel → runtime verification gate (build ✓, imports ✓, server boot ✓, migrations ✓) → Diablo review → Itachi security scan → user confirms deploy → staging smoke tests → production.
+Spec must exist and be user-approved (Lelouch self-validates, Byakuya as fallback) → Wiz researches competitors (if UI) → Rohan + Killua + Conan backend + Itachi security all run in parallel → runtime verification gate (build ✓, imports ✓, server boot ✓, migrations ✓) → Diablo review (max 2 rounds, fixes via SendMessage) → security gate check → L writes docs → user confirms deploy → staging smoke tests → production.
 
 Pipeline state tracked in `.claude/sdd-state.json`. `sdd-gate.sh` (PreToolUse hook) **structurally blocks** premature Agent dispatches — Conan frontend cannot start until Rohan delivers, deploys cannot start until Diablo reviews. Exit code 2 = hard block, not a suggestion.
 
@@ -848,6 +852,19 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v1.3.0
+
+**Pipeline cost optimization — 35-60% reduction in daily subagent costs.** Research-backed changes from multi-agent cost analysis (OrgAgent, Google ADK, LangGraph, Mastra, AgentDiet).
+
+- **Agent continuation via SendMessage** — Fix loops in Phases 3.5 and 4 now continue existing agents instead of spawning fresh dispatches. A fresh dispatch loads ~45-65K tokens of context; SendMessage costs ~500 tokens. 100x cheaper per fix cycle.
+- **Structured context handoffs** — Phase transitions pass 200-500 token structured summaries instead of 5-20K token raw agent output. Handoff templates defined for every phase boundary.
+- **Context bus (`.claude/context/`)** — Agents write structured deliverables to shared files. Downstream agents read only what they need instead of receiving everything through Wantan's prompt.
+- **3-tier dispatch path** — Full SDD (14-31 dispatches) for features, Light SDD (3-5 dispatches) for bug fixes, Direct (1 dispatch) for single-file changes. Not every task needs the full pipeline.
+- **Haiku model routing** — Byakuya, L, and Kazuma dispatch on Haiku (3x cheaper than Sonnet) for checklist/pattern-matching work.
+- **Merged sequential agents** — Byakuya validation merged into Lelouch (1 fewer dispatch). L docs moved to Phase 5 only (1 fewer dispatch). Itachi scans in Phase 2 parallel (catches security issues earlier, reduces late-stage fix cycles).
+- **Fix loop caps** — Phase 3.5: max 5 cycles with early-out on >5 first-pass failures. Phase 4: max 2 CHANGES_REQUESTED rounds before user escalation.
+- **Tool result truncation** — Bash output capped at 3K tokens, Grep at 50 matches, agent returns at 2K tokens. Reduces token waste from verbose outputs.
 
 ### v1.2.0
 
