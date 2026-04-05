@@ -8,15 +8,18 @@ import type {
   FactSearchResult,
   MemoryIndex,
 } from '../types.js';
+import { AGENT_SCOPE_MAP } from '../types.js';
 
 /**
  * Noise patterns — observations that should NOT produce facts.
  * These are routine tool calls with no knowledge value.
  */
 const NOISE_PATTERNS: RegExp[] = [
-  /^Bash:\s*(ls|cd|pwd|echo|cat|head|tail|wc|which|whoami|date|clear)\b/i,
-  /^Bash:\s*git\s+(status|log|diff|branch|stash|fetch|pull)\b/i,
-  /^Bash:\s*npm\s+(install|ci|i)\b/i,
+  /^Bash:\s*(ls|cd|pwd|echo|cat|head|tail|wc|which|whoami|date|clear|less|more|file|stat|df|du|free|top|ps|kill|man|history)\b/i,
+  /^Bash:\s*git\s+(status|log|diff|branch|stash|fetch|pull|show|remote|tag|blame|cherry-pick)\b/i,
+  /^Bash:\s*npm\s+(install|ci|i|ls|outdated|audit)\b/i,
+  /^Bash:\s*(node|python3?|ruby|php)\s+--?version/i,
+  /^Bash:\s*docker\s+(ps|images|logs|inspect)\b/i,
   /^Bash:\s*node_modules/i,
   /^Read:\s/i,
   /^Glob:\s/i,
@@ -28,8 +31,13 @@ const NOISE_PATTERNS: RegExp[] = [
   /<system-reminder>/i,
   /<\/?[a-z-]+>/,                      // Generic XML/HTML tags (system messages)
   /^Bash:\s*curl\s.*wantan-mem/i,      // Self-referential mem calls
+  /^Bash:\s*curl\s.*localhost/i,       // Local service health checks
   /^Bash:\s*sleep\b/i,                 // Sleep commands
   /^MCP:\s/i,                          // MCP tool calls (low signal)
+  /^Bash:\s*(grep|rg|find|sed|awk|sort|uniq|cut|tr)\s/i, // Unix text utilities
+  // Turn summaries are meta-observations (observations about observations) — low signal
+  /^Turn summary:/i,
+  /files changed.*searches.*actions/i,
 ];
 
 /**
@@ -42,38 +50,42 @@ interface CategoryRule {
 }
 
 const CATEGORY_RULES: CategoryRule[] = [
-  // Decisions (importance 10)
-  { pattern: /\b(decided|chose|committed to|will use|going with|selected|picked)\b/i, category: 'decision', importance: 10 },
-  { pattern: /\b(architecture|design decision|tech stack|chose .+ over)\b/i, category: 'decision', importance: 10 },
+  // Decisions (importance 10) — explicit decision language only
+  { pattern: /\b(decided to|chose to|committed to|will use|going with|selected|picked)\s+\w/i, category: 'decision', importance: 10 },
+  { pattern: /\b(design decision|tech stack decision|chose .+ over .+)\b/i, category: 'decision', importance: 10 },
+  { pattern: /\bADR\b/i, category: 'decision', importance: 10 },
 
-  // Errors and security (importance 8)
-  // Note: "fix" alone is too greedy — it matches normal conversation ("fix the layout", "fix typo").
-  // Only match "fix" when paired with error-context words, or match standalone error indicators.
-  { pattern: /\b(error|bug|crash|exception|failure|broken)\b/i, category: 'error', importance: 8 },
-  { pattern: /\bfix(ed|ing)?\s+(bug|error|crash|failure|issue|regression|vulnerability)\b/i, category: 'error', importance: 8 },
-  { pattern: /\b(CVE|vulnerability|security|auth(entication|orization)?\s+(issue|bug|flaw))\b/i, category: 'security', importance: 8 },
+  // Errors (importance 8) — actual error indicators, not generic mentions
+  { pattern: /\b(error|bug|crash|exception|failure)\s*:/i, category: 'error', importance: 8 },
+  { pattern: /\bfix(ed|ing)\s+(bug|error|crash|failure|regression|vulnerability)\b/i, category: 'error', importance: 8 },
   { pattern: /\b(incident|outage|downtime|P[0-3])\b/i, category: 'error', importance: 8 },
+  { pattern: /exit code [1-9]/i, category: 'error', importance: 8 },
+
+  // Security (importance 8) — only actual security findings, not project names
+  { pattern: /\bCVE-\d{4}-\d+\b/i, category: 'security', importance: 8 },
+  { pattern: /\b(vulnerability|exploit|injection|XSS|CSRF)\s+(found|detected|in)\b/i, category: 'security', importance: 8 },
+  { pattern: /\bauth(entication|orization)\s+(issue|bug|flaw|bypass)\b/i, category: 'security', importance: 8 },
 
   // Blockers (importance 7)
-  { pattern: /\b(blocked|blocker|stuck|can't proceed|waiting on|dependency issue)\b/i, category: 'blocker', importance: 7 },
+  { pattern: /\b(blocked by|blocker:|stuck on|can't proceed|waiting on|dependency issue)\b/i, category: 'blocker', importance: 7 },
 
-  // Architecture (importance 6)
-  { pattern: /^Write:\s/i, category: 'architecture', importance: 6 },
-  { pattern: /^Edit:\s/i, category: 'architecture', importance: 6 },
-  { pattern: /\b(implement(ed|ing)?|creat(ed|ing)|built|added|refactor(ed|ing)?)\b/i, category: 'architecture', importance: 6 },
-  { pattern: /\b(schema|migration|database|model|endpoint|route|component|module)\b/i, category: 'architecture', importance: 6 },
-  { pattern: /\b(test(s|ed|ing)?|spec|coverage)\b/i, category: 'architecture', importance: 6 },
-  { pattern: /\b(deploy(ed|ing|ment)?|release|ship(ped|ping)?|CI\/CD|pipeline)\b/i, category: 'architecture', importance: 6 },
+  // Architecture (importance 6) — specific structural changes, not generic file writes
+  { pattern: /\b(schema|migration|database)\s+(change|update|create|add|alter)\b/i, category: 'architecture', importance: 6 },
+  { pattern: /\b(new endpoint|new route|new component|new module|new service)\b/i, category: 'architecture', importance: 6 },
+  { pattern: /\b(refactor(ed|ing))\s+\w/i, category: 'architecture', importance: 6 },
+  { pattern: /\b(deploy(ed|ment)\s+to\s+(staging|production|prod))\b/i, category: 'architecture', importance: 6 },
 
   // Patterns and preferences (importance 5)
-  { pattern: /\b(pattern|convention|standard|best practice|approach|methodology)\b/i, category: 'pattern', importance: 5 },
-  { pattern: /\b(prefer(s|red|ence)?|always use|never use|avoid|style)\b/i, category: 'preference', importance: 5 },
+  { pattern: /\b(pattern|convention|standard|best practice)\s*:/i, category: 'pattern', importance: 5 },
+  { pattern: /\b(always use|never use|avoid using|prefer)\s+\w/i, category: 'preference', importance: 5 },
 
-  // Research and learning (importance 4)
+  // Research and learning (importance 4) — explicit research output, not every Agent dispatch
   { pattern: /^WebSearch:\s/i, category: 'learned', importance: 4 },
-  { pattern: /^Agent\s*\(/i, category: 'learned', importance: 4 },
-  { pattern: /\b(research(ed|ing)?|investigat(ed|ing)|explor(ed|ing)|evaluat(ed|ing)|compar(ed|ing))\b/i, category: 'learned', importance: 4 },
-  { pattern: /\b(learn(ed|ing)?|discover(ed|ing)?|found that|turns out|TIL)\b/i, category: 'learned', importance: 4 },
+  { pattern: /\b(research(ed)?|investigated|evaluated|compared)\s+.{10,}/i, category: 'learned', importance: 4 },
+  { pattern: /\b(found that|turns out|TIL|key finding|discovery)\b/i, category: 'learned', importance: 4 },
+
+  // Agent dispatches — track which agents did what (importance 3)
+  { pattern: /^Agent\s*\(/i, category: 'learned', importance: 3 },
 ];
 
 /**
@@ -170,7 +182,10 @@ export class FactStore {
    * Search facts using FTS5 full-text search.
    */
   search(query: string, options: FactSearchOptions = {}): FactSearchResult[] {
-    const { project, category, minImportance, limit = 20 } = options;
+    const { project, category, minImportance, limit = 20, agentScope } = options;
+
+    // Resolve agent scope to category filter
+    const scopeCategories = agentScope ? AGENT_SCOPE_MAP[agentScope.toLowerCase()] : undefined;
 
     // Wildcard query — bypass FTS, scan with filters
     if (query === '*') {
@@ -188,6 +203,10 @@ export class FactStore {
       if (category) {
         sql += ' AND category = @category';
         params.category = category;
+      } else if (scopeCategories && scopeCategories.length > 0) {
+        const placeholders = scopeCategories.map((_, i) => `@scope_${i}`);
+        sql += ` AND category IN (${placeholders.join(',')})`;
+        scopeCategories.forEach((cat, i) => { params[`scope_${i}`] = cat; });
       }
       if (minImportance) {
         sql += ' AND importance >= @minImportance';
@@ -217,6 +236,10 @@ export class FactStore {
     if (category) {
       sql += ' AND f.category = @category';
       params.category = category;
+    } else if (scopeCategories && scopeCategories.length > 0) {
+      const placeholders = scopeCategories.map((_, i) => `@scope_${i}`);
+      sql += ` AND f.category IN (${placeholders.join(',')})`;
+      scopeCategories.forEach((cat, i) => { params[`scope_${i}`] = cat; });
     }
     if (minImportance) {
       sql += ' AND f.importance >= @minImportance';
@@ -253,7 +276,8 @@ export class FactStore {
     // score = importance * access_boost * recency_decay
     // - access_boost = 1.0 + 0.5 * access_count (rewards frequently retrieved facts)
     // - recency_decay = 0.995 ^ hours_since_creation (exponential decay, half-life ~6 days)
-    // Facts older than ~2 weeks need high importance or access count to stay in the index
+    // Filter: importance >= 5 excludes low-value "learned" catch-all facts (importance 3-4)
+    // Filter: exclude content that looks like bash commands or file paths (not knowledge)
     const topFacts = this.db
       .prepare(
         `SELECT id, category, content, importance, access_count, created_at,
@@ -263,6 +287,11 @@ export class FactStore {
                 as score
          FROM facts
          WHERE project = ?
+           AND importance >= 5
+           AND content NOT LIKE 'Bash:%'
+           AND content NOT LIKE 'Write:%'
+           AND content NOT LIKE 'Edit:%'
+           AND content NOT LIKE 'Agent (%'
          ORDER BY score DESC
          LIMIT 10`
       )

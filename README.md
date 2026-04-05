@@ -8,7 +8,7 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -852,6 +852,19 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v1.4.0
+
+**Memory architecture overhaul — additional 30-50% cost reduction through smarter memory.**
+
+- **Credential scrubbing** — Passwords, tokens, API keys, and connection strings are now stripped from observations before storage. Regex patterns catch SSH passwords, database URIs, bearer tokens, AWS/GCP/Azure keys, and generic PASSWORD/SECRET env vars. 281 existing facts with plaintext credentials are a known issue in pre-1.4.0 databases.
+- **Bash noise filter hardened** — Observe hook now filters git status/log/diff, ls, cat, grep, sed, head/tail, version checks, docker ps/logs, and localhost curl at the shell level. Previously 24% of observations (1,335 of 5,484) were pure noise that leaked through to the database.
+- **Fact classification overhaul** — Tightened greedy regex rules: `Write:` and `Edit:` no longer auto-classify as architecture (importance 6). Security category requires actual CVE/vulnerability findings, not project names containing "security". Turn summaries filtered as noise. Result: useful facts (decisions, blockers, patterns) should rise from 0.7% to ~15-20% of all facts.
+- **L1 index quality** — `rebuildIndex()` now filters to importance >= 5 and excludes Bash/Write/Edit/Agent prefixes. Memory summaries show actual decisions and findings instead of reformulated bash commands.
+- **Agent-scoped memory retrieval** — New `agent_scope` parameter on `mem_facts`. Each agent retrieves only fact categories relevant to their role (e.g., Conan gets architecture+error, Itachi gets security only). Research shows 60-70% per-agent token reduction.
+- **Episode memory** — New `episodes` table and `episode_search`/`episode_store` MCP tools. Agents check "have I solved this before?" before starting work. Only verified successes are stored (MemP research: naive add-all is worse than no memory). Expected 18% step reduction on recurring tasks.
+- **Observation pruning wired up** — Compact hook now calls `prune()` (14-day cutoff, creates weekly digests) and cleans up orphaned worktree project data. Previously observations accumulated forever.
+- **Vault manifest index** — New `vault/MANIFEST.md` system provides a pre-computed document inventory (~2K tokens) that agents read before grepping vault directories (~85K tokens). 6-12x reduction in vault retrieval cost.
 
 ### v1.3.0
 

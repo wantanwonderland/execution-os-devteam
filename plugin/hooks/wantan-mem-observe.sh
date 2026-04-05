@@ -18,7 +18,7 @@ except:
 " 2>/dev/null)
 
 # Skip self-referential and noisy observations
-if [[ "$TOOL_NAME" == *"wantan-mem"* ]] || [[ "$TOOL_NAME" == "Read" ]] || [[ "$TOOL_NAME" == "Glob" ]] || [[ "$TOOL_NAME" == "Grep" ]]; then
+if [[ "$TOOL_NAME" == *"wantan-mem"* ]] || [[ "$TOOL_NAME" == "Read" ]] || [[ "$TOOL_NAME" == "Glob" ]] || [[ "$TOOL_NAME" == "Grep" ]] || [[ "$TOOL_NAME" == "TaskCreate" ]] || [[ "$TOOL_NAME" == "TaskUpdate" ]] || [[ "$TOOL_NAME" == "TaskList" ]] || [[ "$TOOL_NAME" == "TaskGet" ]]; then
   exit 0
 fi
 
@@ -31,9 +31,42 @@ try:
     tool_input = d.get('tool_input', {})
     tool_output = str(d.get('tool_output', ''))[:300]
 
+    import re
+
+    # Credential scrubbing patterns — strip BEFORE storing
+    def scrub_credentials(text):
+        # Passwords in CLI args
+        text = re.sub(r'(-p|--password[= ]|sshpass -p )[\'\"]\S+[\'\"]', r'\1[REDACTED]', text)
+        text = re.sub(r'(-p|--password[= ])\S+', r'\1[REDACTED]', text)
+        # Connection strings with passwords
+        text = re.sub(r'(mysql|postgres|mongodb|redis)://\S+:\S+@', r'\1://[REDACTED]@', text)
+        # Bearer tokens and API keys
+        text = re.sub(r'(Bearer |Authorization: |token[= ]|api[_-]?key[= ])\S+', r'\1[REDACTED]', text)
+        # AWS/GCP/Azure keys
+        text = re.sub(r'(AKIA|AIza|sk-|ghp_|gho_|github_pat_)\S+', '[REDACTED_KEY]', text)
+        # Generic password patterns in env vars
+        text = re.sub(r'(PASSWORD|SECRET|TOKEN|PRIVATE_KEY)[= ]\S+', r'\1=[REDACTED]', text, flags=re.IGNORECASE)
+        return text
+
+    # Bash noise filter — skip commands with no knowledge value
+    BASH_NOISE = re.compile(
+        r'^(git\s+(status|log|diff|branch|stash|fetch|pull|show|remote)|'
+        r'ls(\s|$)|cat\s|head\s|tail\s|wc\s|grep\s|sed\s|awk\s|'
+        r'echo\s|pwd|cd\s|which\s|whoami|date|clear|'
+        r'node\s+--version|python3?\s+--version|npm\s+(--version|ls)|'
+        r'docker\s+(ps|images|logs)|'
+        r'curl\s.*localhost:37778)',
+        re.IGNORECASE
+    )
+
     # Extract meaningful content based on tool type
     if tool == 'Bash':
         cmd = tool_input.get('command', '')[:150]
+        # Skip noisy bash commands entirely
+        if BASH_NOISE.match(cmd.strip()):
+            print('')
+            import sys; sys.exit(0)
+        cmd = scrub_credentials(cmd)
         content = f'Bash: {cmd}'
     elif tool == 'Agent':
         desc = tool_input.get('description', '')[:100]
@@ -56,6 +89,8 @@ try:
     else:
         content = f'{tool}: {json.dumps(tool_input)[:150]}'
 
+    # Final credential scrub on all content
+    content = scrub_credentials(content)
     # Escape for safe JSON embedding
     print(json.dumps(content)[1:-1])
 except:
@@ -93,8 +128,13 @@ print(json.dumps(os.path.basename(os.getcwd()))[1:-1])
 
 # Default to wantan if empty
 AGENT="${AGENT:-wantan}"
-CONTENT="${CONTENT:-Tool: $TOOL_NAME}"
 PROJECT="${PROJECT:-unknown}"
+
+# Skip if content is empty (noise-filtered by python)
+if [[ -z "$CONTENT" ]]; then
+  exit 0
+fi
+CONTENT="${CONTENT:-Tool: $TOOL_NAME}"
 
 # POST to worker (fire and forget, 2s timeout)
 curl -s -X POST "$WORKER_URL/api/observe" \

@@ -128,6 +128,43 @@ CREATE TABLE IF NOT EXISTS memory_index (
   total_observations INTEGER DEFAULT 0
 );
 
+-- Episodes table: successful task traces for "I solved this before" recall
+-- Inspired by MemP (ICLR 2026): agents that store past procedures save 18% steps
+-- ONLY store verified successes — naive add-all is WORSE than no memory
+CREATE TABLE IF NOT EXISTS episodes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent TEXT NOT NULL,              -- which agent solved this (conan, killua, etc.)
+  task_summary TEXT NOT NULL,       -- "Fixed auth middleware JWT validation error"
+  solution_summary TEXT NOT NULL,   -- compressed solution trace (~200-500 tokens)
+  files_touched TEXT,               -- JSON array of file paths involved
+  project TEXT NOT NULL,
+  success INTEGER DEFAULT 1,        -- only store verified successes
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  retrieval_count INTEGER DEFAULT 0,
+  content_hash TEXT                  -- SHA256 dedup
+);
+
+-- FTS5 for episode search
+CREATE VIRTUAL TABLE IF NOT EXISTS episodes_fts USING fts5(
+  task_summary, solution_summary, agent, project,
+  content=episodes,
+  content_rowid=id
+);
+
+CREATE TRIGGER IF NOT EXISTS episodes_ai AFTER INSERT ON episodes BEGIN
+  INSERT INTO episodes_fts(rowid, task_summary, solution_summary, agent, project)
+  VALUES (new.id, new.task_summary, new.solution_summary, new.agent, new.project);
+END;
+
+CREATE TRIGGER IF NOT EXISTS episodes_ad AFTER DELETE ON episodes BEGIN
+  INSERT INTO episodes_fts(episodes_fts, rowid, task_summary, solution_summary, agent, project)
+  VALUES ('delete', old.id, old.task_summary, old.solution_summary, old.agent, old.project);
+END;
+
+CREATE INDEX IF NOT EXISTS idx_episodes_agent ON episodes(agent);
+CREATE INDEX IF NOT EXISTS idx_episodes_project ON episodes(project);
+CREATE INDEX IF NOT EXISTS idx_episodes_hash ON episodes(content_hash);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_observations_session ON observations(session_id);
 CREATE INDEX IF NOT EXISTS idx_observations_agent ON observations(agent);

@@ -251,7 +251,7 @@ export function createRoutes(db: Database.Database): Router {
   // Search facts (much more efficient than searching raw observations)
   router.get('/api/facts/search', (req: Request, res: Response) => {
     try {
-      const { query, project, category, min_importance, limit } = req.query;
+      const { query, project, category, min_importance, limit, agent_scope } = req.query;
       if (!query) {
         res.status(400).json({ error: 'Missing required parameter: query' });
         return;
@@ -261,6 +261,7 @@ export function createRoutes(db: Database.Database): Router {
         category: category as any,
         minImportance: min_importance ? parseInt(min_importance as string) : undefined,
         limit: limit ? parseInt(limit as string) : undefined,
+        agentScope: agent_scope as string,
       });
 
       // Record access for retrieved facts (MemOS access-weighted ranking)
@@ -303,6 +304,157 @@ export function createRoutes(db: Database.Database): Router {
       }
       const index = factStore.rebuildIndex(project);
       res.json(index);
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // --- Pruning endpoints ---
+
+  // Prune old observations (creates weekly digests, deletes originals)
+  router.post('/api/prune', (req: Request, res: Response) => {
+    try {
+      const { older_than_days = 14 } = req.body;
+      const result = observationStore.prune(older_than_days);
+      res.json({ status: 'ok', ...result });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // Clean up orphaned worktree project data
+  router.post('/api/prune/worktrees', (_req: Request, res: Response) => {
+    try {
+      // Delete observations from agent-* worktree projects (ephemeral, no future value)
+      const result = db.prepare(
+        `DELETE FROM observations WHERE project LIKE 'agent-%'`
+      ).run();
+      // Delete corresponding facts
+      const factResult = db.prepare(
+        `DELETE FROM facts WHERE project LIKE 'agent-%'`
+      ).run();
+      // Delete orphaned memory indexes
+      db.prepare(`DELETE FROM memory_index WHERE project LIKE 'agent-%'`).run();
+      res.json({
+        status: 'ok',
+        observations_deleted: result.changes,
+        facts_deleted: factResult.changes,
+      });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // --- Episode endpoints (past successful task solutions) ---
+
+  // Search episodes
+  router.get('/api/episodes/search', (req: Request, res: Response) => {
+    try {
+      const { query, agent, project, limit } = req.query;
+      if (!query) {
+        res.status(400).json({ error: 'Missing required parameter: query' });
+        return;
+      }
+
+      // Sanitize FTS query
+      const cleaned = (query as string).replace(/[*"(){}[\]^~:]/g, '').trim();
+      const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+      const ftsQuery = words.length <= 1 ? (words[0] || '""') : words.join(' OR ');
+
+      let sql = `
+        SELECT e.id, e.agent, e.task_summary, e.solution_summary, e.files_touched,
+               e.project, e.created_at, e.retrieval_count, fts.rank
+        FROM episodes_fts fts
+        JOIN episodes e ON e.id = fts.rowid
+        WHERE episodes_fts MATCH @query
+      `;
+      const params: Record<string, unknown> = { query: ftsQuery, limit: limit ? parseInt(limit as string) : 5 };
+
+      if (agent) {
+        sql += ' AND e.agent = @agent';
+        params.agent = agent;
+      }
+      if (project) {
+        sql += ' AND e.project = @project';
+        params.project = project;
+      }
+      sql += ' ORDER BY e.retrieval_count DESC, fts.rank LIMIT @limit';
+
+      const results = db.prepare(sql).all(params);
+
+      // Bump retrieval counts
+      for (const r of results as any[]) {
+        db.prepare('UPDATE episodes SET retrieval_count = retrieval_count + 1 WHERE id = ?').run(r.id);
+      }
+
+      const text = (results as any[]).length === 0
+        ? 'No matching episodes found. This task has not been solved before.'
+        : (results as any[]).map((r: any) =>
+            `[Episode #${r.id}] Agent: ${r.agent} | ${r.task_summary}\n` +
+            `Solution: ${r.solution_summary}\n` +
+            `Files: ${r.files_touched || 'N/A'} | Retrieved: ${r.retrieval_count}x`
+          ).join('\n---\n');
+
+      res.json({ content: [{ type: 'text', text }] });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // Store episode
+  router.post('/api/episodes', (req: Request, res: Response) => {
+    try {
+      const { agent, task_summary, solution_summary, files_touched, project } = req.body;
+      if (!agent || !task_summary || !solution_summary || !project) {
+        res.status(400).json({ error: 'Missing required fields: agent, task_summary, solution_summary, project' });
+        return;
+      }
+
+      // Dedup via content hash
+      const { createHash } = require('crypto');
+      const hash = createHash('sha256').update(`${agent}:${task_summary}:${solution_summary}`).digest('hex');
+      const existing = db.prepare('SELECT id FROM episodes WHERE content_hash = ?').get(hash);
+      if (existing) {
+        res.json({ status: 'duplicate', message: 'Episode already stored' });
+        return;
+      }
+
+      // Ensure episodes table exists (first-time migration)
+      db.exec(`CREATE TABLE IF NOT EXISTS episodes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent TEXT NOT NULL,
+        task_summary TEXT NOT NULL,
+        solution_summary TEXT NOT NULL,
+        files_touched TEXT,
+        project TEXT NOT NULL,
+        success INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        retrieval_count INTEGER DEFAULT 0,
+        content_hash TEXT
+      )`);
+      db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS episodes_fts USING fts5(
+        task_summary, solution_summary, agent, project,
+        content=episodes, content_rowid=id
+      )`);
+      db.exec(`CREATE TRIGGER IF NOT EXISTS episodes_ai AFTER INSERT ON episodes BEGIN
+        INSERT INTO episodes_fts(rowid, task_summary, solution_summary, agent, project)
+        VALUES (new.id, new.task_summary, new.solution_summary, new.agent, new.project);
+      END`);
+
+      const episode = db.prepare(
+        `INSERT INTO episodes (agent, task_summary, solution_summary, files_touched, project, content_hash)
+         VALUES (@agent, @task_summary, @solution_summary, @files_touched, @project, @hash)
+         RETURNING *`
+      ).get({
+        agent,
+        task_summary,
+        solution_summary,
+        files_touched: files_touched ? JSON.stringify(files_touched) : null,
+        project,
+        hash,
+      });
+
+      res.status(201).json(episode);
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }

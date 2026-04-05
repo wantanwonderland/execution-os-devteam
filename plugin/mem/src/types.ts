@@ -106,7 +106,30 @@ export interface FactSearchOptions {
   category?: FactCategory;
   minImportance?: number;
   limit?: number;
+  agentScope?: string;
 }
+
+/**
+ * Agent-scoped category mapping.
+ * Each agent only retrieves fact categories relevant to their role.
+ * Reduces per-agent token consumption by 60-70% (Google ADK research).
+ */
+export const AGENT_SCOPE_MAP: Record<string, FactCategory[]> = {
+  conan: ['architecture', 'error', 'decision', 'blocker'],
+  killua: ['error', 'architecture', 'blocker'],
+  diablo: ['architecture', 'pattern', 'error', 'decision'],
+  itachi: ['security', 'error'],
+  shikamaru: ['architecture', 'error', 'blocker'],
+  wiz: ['learned', 'decision', 'pattern'],
+  kazuma: ['decision', 'pattern'],
+  rohan: ['pattern', 'preference', 'decision'],
+  l: ['decision', 'architecture', 'pattern'],
+  senku: ['architecture', 'decision', 'pattern'],
+  yomi: ['learned', 'architecture', 'decision'],
+  chiyo: ['learned', 'architecture', 'decision'],
+  sai: ['architecture', 'learned'],
+  byakuya: ['pattern', 'decision'],
+};
 
 export interface FactSearchResult {
   id: number;

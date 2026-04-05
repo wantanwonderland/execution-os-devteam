@@ -107,7 +107,7 @@ NEVER fetch full details without filtering first. 10x token savings.`,
   },
   {
     name: 'mem_facts',
-    description: 'Search distilled facts (compressed knowledge from observations). More useful than raw observation search. Params: query (required), project, category, min_importance, limit',
+    description: 'Search distilled facts (compressed knowledge from observations). More useful than raw observation search. Params: query (required), project, category, min_importance, limit, agent_scope',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -115,7 +115,8 @@ NEVER fetch full details without filtering first. 10x token savings.`,
         project: { type: 'string', description: 'Filter by project' },
         category: { type: 'string', description: 'Filter by category: decision, pattern, preference, learned, blocker, architecture, error, security' },
         min_importance: { type: 'number', description: 'Minimum importance score (1-10)' },
-        limit: { type: 'number', description: 'Max results (default 20)' }
+        limit: { type: 'number', description: 'Max results (default 20)' },
+        agent_scope: { type: 'string', description: 'Filter facts relevant to a specific agent role. Scopes: conan (architecture, error), killua (error, architecture), diablo (architecture, pattern, error), itachi (security), shikamaru (architecture, error), wiz (learned, decision), kazuma (decision), rohan (pattern, preference), yomi (learned, architecture), chiyo (learned, architecture)' }
       },
       required: ['query']
     }
@@ -139,6 +140,35 @@ NEVER fetch full details without filtering first. 10x token savings.`,
       properties: {
         project: { type: 'string', description: 'Filter by project (optional)' }
       }
+    }
+  },
+  {
+    name: 'episode_search',
+    description: 'Search past successful task solutions. Use BEFORE starting work to check "have I solved something like this before?" Returns compressed solution traces that eliminate re-investigation. Params: query (required), agent, project, limit',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'Describe the task (e.g., "fix auth middleware", "add Apple Sign-In")' },
+        agent: { type: 'string', description: 'Filter by agent who solved it' },
+        project: { type: 'string', description: 'Filter by project' },
+        limit: { type: 'number', description: 'Max results (default 5)' }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'episode_store',
+    description: 'Store a verified successful task solution for future recall. ONLY call after a task is confirmed successful (tests pass, review approved). Params: agent, task_summary, solution_summary, files_touched, project',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        agent: { type: 'string', description: 'Agent who solved this (conan, killua, etc.)' },
+        task_summary: { type: 'string', description: 'One-line task description' },
+        solution_summary: { type: 'string', description: 'Compressed solution trace (200-500 tokens): what was done, key files, approach taken' },
+        files_touched: { type: 'array', items: { type: 'string' }, description: 'File paths involved in the solution' },
+        project: { type: 'string', description: 'Project name' }
+      },
+      required: ['agent', 'task_summary', 'solution_summary', 'project']
     }
   }
 ];
@@ -216,6 +246,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const categories = await callWorker(`/api/facts/categories?${params}`);
         return { content: [{ type: 'text', text: JSON.stringify(categories, null, 2) }] };
       }
+
+      case 'episode_search': {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(args || {})) {
+          if (v != null) params.append(k, String(v));
+        }
+        return await callWorker(`/api/episodes/search?${params}`);
+      }
+
+      case 'episode_store':
+        return { content: [{ type: 'text', text: JSON.stringify(await callWorkerPost('/api/episodes', args), null, 2) }] };
 
       default:
         return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };
