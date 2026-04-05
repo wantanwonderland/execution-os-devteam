@@ -703,11 +703,53 @@ Check your installed version:
 /plugin list
 ```
 
-### Syncing delegation rules to existing projects
+### Migrating existing projects to v1.4.0
 
-Plugin updates auto-update agent behavior in `plugin/rules/`, but your project's `CLAUDE.md` is never overwritten (it contains your customizations). The delegation block — which routes requests to the right agent — lives between `<!-- WANTAN:DELEGATION:START -->` and `<!-- WANTAN:DELEGATION:END -->` markers and needs to be synced separately.
+The `migrate.py` script handles everything: CLAUDE.md delegation sync, database schema upgrades, credential scrubbing, noise pruning, vault manifest generation, and context bus setup.
 
-**Sync all installed projects:**
+**Migrate all installed projects:**
+
+```bash
+# From the execution-os-devteam repo root
+python3 migrate.py                  # dry run — shows what would change
+python3 migrate.py --apply          # apply to all installed projects
+```
+
+**Migrate a single project:**
+
+```bash
+python3 migrate.py --apply --path /path/to/your-project
+```
+
+**Database-only or vault-only:**
+
+```bash
+python3 migrate.py --apply --db-only     # only database migrations
+python3 migrate.py --apply --vault-only   # only vault + CLAUDE.md
+```
+
+**What the migration does:**
+
+| Step | What | Why |
+|------|------|-----|
+| Create `episodes` table | Episode memory for "I solved this before" | New in v1.4.0 |
+| Scrub credentials | Strip passwords/tokens from existing observations + facts | Security fix |
+| Prune noise | Delete git status, ls, cat observations | 24% of DB was noise |
+| Clean worktrees | Delete orphaned agent-* project data | 13.6% of DB was ephemeral waste |
+| Drop dead tables | Remove pr_observations, test_observations, security_observations (0 rows) | Schema cleanup |
+| Rebuild L1 indexes | Apply new quality filters (importance >= 5) | Better memory summaries |
+| Sync CLAUDE.md | Update delegation block with new pipeline (v1.3.0+) | New agents, dispatch tiers, SendMessage rules |
+| Generate MANIFEST.md | Pre-computed vault document index | 6-12x cheaper vault lookups |
+| Create .claude/context/ | Context bus directory for structured handoffs | New in v1.3.0 |
+
+**After migration:**
+1. Restart wantan-mem worker: `cd plugin/mem && npx tsx src/worker/server.ts`
+2. Reload plugins in Claude Code: `/reload-plugins`
+3. Verify: `wantan, check memory health`
+
+### Syncing delegation rules only (legacy)
+
+If you only need to sync the CLAUDE.md delegation block without running the full migration:
 
 ```bash
 # From the execution-os-devteam repo root
@@ -723,10 +765,11 @@ python3 sync-delegation.py --apply --path /path/to/your-project
 
 The script patches only the delegation block, leaving all project-specific content (tech stack, modules, code conventions) untouched.
 
-**When to sync:**
+**When to sync or migrate:**
 - After any Execution-OS update that changes agent routing or SDD pipeline rules
 - When Wantan stops delegating correctly in a project
 - After adding a new agent to the squad
+- After upgrading to v1.3.0+ (pipeline changes) or v1.4.0+ (memory changes) — use `migrate.py` instead
 
 ---
 
@@ -843,7 +886,8 @@ execution-os-devteam/
 │   ├── dashboard/            # Dev Performance Hub (8 views)
 │   ├── CLAUDE.md             # System config (with delegation rules)
 │   └── setup-wizard.sh       # Team personalization
-├── sync-delegation.py        # Sync delegation rules to installed projects
+├── migrate.py                # Full migration for existing projects (v1.4.0+)
+├── sync-delegation.py        # Sync delegation rules only (legacy)
 ├── assets/agents/            # Agent avatars
 ├── LICENSE                   # MIT
 └── README.md
