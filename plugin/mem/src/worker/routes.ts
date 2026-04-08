@@ -275,6 +275,29 @@ export function createRoutes(db: Database.Database): Router {
     }
   });
 
+  // Recent facts — last N hours, ordered by creation time (session-start recency fallback)
+  router.get('/api/facts/recent', (req: Request, res: Response) => {
+    try {
+      const { project, hours, limit } = req.query;
+      if (!project) {
+        res.status(400).json({ error: 'Missing required parameter: project' });
+        return;
+      }
+      const results = factStore.getRecent(
+        project as string,
+        hours ? parseInt(hours as string) : 48,
+        limit ? parseInt(limit as string) : 8
+      );
+      if (results.length === 0) {
+        res.json({ content: [{ type: 'text', text: 'No recent facts found.' }] });
+        return;
+      }
+      res.json({ content: [{ type: 'text', text: formatFactResults(results) }] });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
   // Get L1 memory index for a project (~500 tokens, always loaded)
   router.get('/api/facts/index', (req: Request, res: Response) => {
     try {

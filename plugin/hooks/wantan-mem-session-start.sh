@@ -58,8 +58,34 @@ except:
   fi
 fi
 
-# Also fetch recent high-importance facts not in the index
-RECENT_FACTS=$(curl -s "$WORKER_URL/api/facts/search?query=*&project=$PROJECT&min_importance=7&limit=5" \
+# Fetch recent activity from last 48 hours (recency-based — catches last session's work regardless of importance score)
+RECENT_ACTIVITY=$(curl -s "$WORKER_URL/api/facts/recent?project=$PROJECT&hours=48&limit=8" \
+  --connect-timeout 2 --max-time 3 2>/dev/null)
+
+if [ -n "$RECENT_ACTIVITY" ] && [ "$RECENT_ACTIVITY" != "null" ]; then
+  ACTIVITY_TEXT=$(echo "$RECENT_ACTIVITY" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    content = d.get('content', [])
+    if content and len(content) > 0:
+        text = content[0].get('text', '')
+        if text and 'No recent facts' not in text:
+            print(text)
+except:
+    pass
+" 2>/dev/null)
+
+  if [ -n "$ACTIVITY_TEXT" ]; then
+    echo "=== wantan-mem: Last Session Activity (48h) ==="
+    echo "$ACTIVITY_TEXT"
+    echo "=== end recent activity ==="
+    echo ""
+  fi
+fi
+
+# Also fetch high-importance facts not captured by recency
+RECENT_FACTS=$(curl -s "$WORKER_URL/api/facts/search?query=*&project=$PROJECT&min_importance=5&limit=5" \
   --connect-timeout 2 --max-time 3 2>/dev/null)
 
 if [ -n "$RECENT_FACTS" ] && [ "$RECENT_FACTS" != "null" ]; then

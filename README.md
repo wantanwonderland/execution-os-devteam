@@ -8,7 +8,7 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-1.4.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-1.4.1-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -896,6 +896,15 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v1.4.1
+
+**Memory recall fix — last session's work now surfaces at session start.**
+
+- **Work-completion category rules** — New `CATEGORY_RULES` patterns detect phase completions, backoffice/dashboard/module delivery, and vendor/booking/stock feature completion. These now classify as `architecture` at importance 6 instead of falling through to the importance-3 default. Fixes the root cause of last-session work being invisible at session start.
+- **Recency-first recall** — New `/api/facts/recent` endpoint and `getRecent()` method fetch facts from the last 48 hours ordered by `created_at DESC`, bypassing importance scoring. Ensures last-session deliverables surface even if classification is imperfect.
+- **Session-start: Last Session Activity block** — New "Last Session Activity (48h)" section injected at session start via the recency endpoint. Complements the existing L1 index (which ranks by importance × access) with a chronological view of what was actually done.
+- **Session-start: High-Priority Facts threshold lowered** — `min_importance` dropped from 7 → 5. Architecture facts (importance 6) and pattern/preference facts (importance 5) now appear in the High-Priority Facts block instead of being silently excluded.
 
 ### v1.4.0
 

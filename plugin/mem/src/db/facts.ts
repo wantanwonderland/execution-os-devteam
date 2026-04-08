@@ -75,6 +75,12 @@ const CATEGORY_RULES: CategoryRule[] = [
   { pattern: /\b(refactor(ed|ing))\s+\w/i, category: 'architecture', importance: 6 },
   { pattern: /\b(deploy(ed|ment)\s+to\s+(staging|production|prod))\b/i, category: 'architecture', importance: 6 },
 
+  // Work completed / feature delivered (importance 6) — catch session deliverables
+  { pattern: /\bphases?\s*\d[\d\s,–\-]*\s*(complete|done|finished|shipped|delivered|built)\b/i, category: 'architecture', importance: 6 },
+  { pattern: /\b(backoffice|dashboard|admin\s+panel|module|feature|screen|page|form|list|detail)\s+(complete|done|finished|shipped|delivered|built|implemented)\b/i, category: 'architecture', importance: 6 },
+  { pattern: /\b(vendor|booking|stock|payment|auth|user|product)\s+(management|list|detail|flow|module)\s+(complete|done|built|implemented|shipped)\b/i, category: 'architecture', importance: 6 },
+  { pattern: /\b(completed?|finished|shipped|delivered|implemented|built)\s+(phase|backoffice|dashboard|module|feature|screen|vendor|booking|stock|admin)\b/i, category: 'architecture', importance: 6 },
+
   // Patterns and preferences (importance 5)
   { pattern: /\b(pattern|convention|standard|best practice)\s*:/i, category: 'pattern', importance: 5 },
   { pattern: /\b(always use|never use|avoid using|prefer)\s+\w/i, category: 'preference', importance: 5 },
@@ -251,6 +257,24 @@ export class FactStore {
 
     sql += ' ORDER BY f.importance DESC, fts.rank LIMIT @limit';
     return this.db.prepare(sql).all(params) as FactSearchResult[];
+  }
+
+  /**
+   * Get recent facts ordered by creation time (recency-based recall).
+   * Used at session start to surface last-session work regardless of importance score.
+   */
+  getRecent(project: string, hours: number = 48, limit: number = 8): FactSearchResult[] {
+    return this.db
+      .prepare(
+        `SELECT id, category, content, importance, project, agent, tags, created_at, access_count, 0 as rank
+         FROM facts
+         WHERE project = @project
+           AND created_at >= datetime('now', @since)
+           AND importance >= 3
+         ORDER BY created_at DESC
+         LIMIT @limit`
+      )
+      .all({ project, since: `-${hours} hours`, limit }) as FactSearchResult[];
   }
 
   /**
