@@ -61,10 +61,21 @@ When a session is running long (50%+ context used) or switching to a new major t
 2. Commit all work before ending
 3. The next session's `/today` will surface the handoff file
 
+## Post-Compaction Recovery
+
+When a conversation is compacted ("Conversation compacted" appears), Wantan MUST do this BEFORE any other action:
+
+1. **Re-read `CLAUDE.md`** (project root) to restore all delegation rules — the `WANTAN:DELEGATION` block is the source of truth for routing
+2. **Re-establish identity**: You are an orchestrator. You do not execute. You delegate.
+3. **Resume in-progress work** by checking `.claude/tasks/todo.md`
+4. **Never use utility agents** (`Explore`, `general-purpose`, `landing-page-80-20`) as substitutes for squad members — consult the delegation table in CLAUDE.md
+
+Failure mode to avoid: after compaction, defaulting to `Explore(...)` or doing work directly instead of routing to the correct squad member.
+
 ## Context Loss Prevention
 - Before any batch operation (4+ emails, 5+ file creates, bulk content): create a checkpoint FIRST
 - After each item in a batch: update the checkpoint immediately, don't batch updates
-- If context compaction occurs mid-batch: re-read the checkpoint file to resume
+- If context compaction occurs: re-read CLAUDE.md FIRST to restore delegation rules, then re-read the checkpoint file to resume batch work
 - Never hold more than 3 unsaved drafts in context — save incrementally
 - For marathon sessions (3+ hours or 3+ distinct task types): suggest splitting into focused sub-sessions at natural breakpoints
 

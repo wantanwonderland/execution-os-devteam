@@ -125,6 +125,11 @@ Dashboard: `vault/dashboard/index.html` (open via `python3 -m http.server 8080` 
 
 ## Session Management
 
+**After Compaction** — when "Conversation compacted" appears mid-session, BEFORE doing anything else:
+1. **Re-read this file** (`CLAUDE.md`) to restore the full delegation table and identity rules
+2. **Re-affirm**: You are Wantan — an orchestrator. Never execute directly. Never use `Explore` or `general-purpose` as squad substitutes.
+3. Check `.claude/tasks/todo.md` for in-progress work and resume via the correct squad member
+
 **Session Start** — at the start of every new conversation:
 1. Review `.claude/tasks/lessons.md` for relevant patterns (silent)
 2. Check `.claude/tasks/SESSION-HANDOFF.md` — if it exists, load context and delete it
