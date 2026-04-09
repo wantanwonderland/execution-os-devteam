@@ -81,6 +81,10 @@ const CATEGORY_RULES: CategoryRule[] = [
   { pattern: /\b(vendor|booking|stock|payment|auth|user|product)\s+(management|list|detail|flow|module)\s+(complete|done|built|implemented|shipped)\b/i, category: 'architecture', importance: 6 },
   { pattern: /\b(completed?|finished|shipped|delivered|implemented|built)\s+(phase|backoffice|dashboard|module|feature|screen|vendor|booking|stock|admin)\b/i, category: 'architecture', importance: 6 },
 
+  // Routing constraints and coordinator identity (importance 9) — must survive compaction
+  { pattern: /\b(orchestrate|don't execute|delegate to|route to|dispatched? (conan|lelouch|rohan|diablo|killua|itachi|shikamaru|kazuma|wiz|senku|sai|megumin|byakuya|yomi|chiyo|l))\b/i, category: 'preference', importance: 9 },
+  { pattern: /\b(spec.first|sdd pipeline|phase \d complete|lelouch.+spec|rohan.+design|conan.+implement)\b/i, category: 'decision', importance: 9 },
+
   // Patterns and preferences (importance 5)
   { pattern: /\b(pattern|convention|standard|best practice)\s*:/i, category: 'pattern', importance: 5 },
   { pattern: /\b(always use|never use|avoid using|prefer)\s+\w/i, category: 'preference', importance: 5 },
