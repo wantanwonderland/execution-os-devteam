@@ -197,14 +197,12 @@ export class FactStore {
          WHERE project = @project
            AND category = @category
            AND superseded = 0
-           AND id != @id
-           AND created_at < @created_at`
+           AND id < @id`
       )
       .all({
         project: newFact.project,
         category: newFact.category,
         id: newFact.id,
-        created_at: newFact.created_at,
       }) as Array<{ id: number; tags: string | null }>;
 
     for (const candidate of candidates) {
@@ -534,7 +532,7 @@ export class FactStore {
     if (!row) return null;
 
     // Mark as restored
-    this.db.prepare('UPDATE compaction_snapshots SET restored = 1, restored_at = datetime("now") WHERE id = ?').run(row.id);
+    this.db.prepare("UPDATE compaction_snapshots SET restored = 1, restored_at = datetime('now') WHERE id = ?").run(row.id);
 
     return {
       id: row.id,

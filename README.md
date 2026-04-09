@@ -8,7 +8,7 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-1.4.1-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -896,6 +896,36 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v2.0.0
+
+**Anti-compaction drift + wantan-mem benchmark suite.**
+
+The biggest reliability gap in the system: after a conversation compaction, Wantan would lose delegation rules and start executing work directly instead of routing to squad members. This release closes it with a three-layer defense and ships a deterministic benchmark suite to catch regressions.
+
+**Anti-compaction drift (root cause fixed):**
+- **SessionStart hook** (`matcher: "compact"`) — fires before the first user turn post-compaction. Injects `context-essentials.md` (identity rules + full delegation table) as a `systemMessage`, bypassing the attention competition between freshly re-read rules and compressed behavioral history.
+- **PreCompact hook** — archives top facts, recent observations, SDD pipeline state, and git branch to a new `compaction_snapshots` SQLite table before compaction runs.
+- **`mem_compact_context` MCP tool** — "CALL FIRST after compaction". Restores pre-compaction context: top facts, recent activity, active pipeline phase.
+- **`context-essentials.md`** — compact anchor file (~53 lines) with core identity rule, full agent routing table, forbidden rationalizations, and SDD pipeline summary. Designed to survive compaction as a fixed injection point.
+
+**wantan-mem memory improvements (reverse-engineered from community patterns):**
+- **Truth maintenance** — contradiction detection (`supersedConflicting`): when a new decision/preference shares ≥2 domain tags with an older fact, the older is marked `superseded=1` and excluded from all search results. Prevents stale decisions from surfacing. (Pattern: codenamev/claude_memory)
+- **Branch correlation** — facts tagged with `git_branch` at write time. New `mem_branch` MCP tool surfaces facts scoped to the current branch. (Pattern: mcp-memory-keeper)
+- **`mem_branch` MCP tool** — `mem_branch(branch: "feature/auth")` returns facts and decisions made on that branch.
+- **Routing constraint preservation** — category rules now classify delegation/orchestration facts at importance 9, ensuring they survive into the L1 index and post-compaction snapshots.
+
+**Path A benchmark suite — 35 deterministic CI tests, no LLM judge:**
+- **Suite A: Retrieval Accuracy** — Recall@5, SubEM pass rate, L1 Hit Rate across 8 gold queries. Current scores: Recall@5=1.0, L1HR=1.0.
+- **Suite B: Post-Compaction Recovery** — PCQA (snapshot content fidelity), SDD state round-trip, restored idempotency, importance ordering. All 10 tests pass.
+- **Suite C: Contradiction Detection** — CRR (Contradiction Resolution Rate). Current: CRR=1.0 across 2 conflict pairs and 6 edge cases.
+- **Suite D: Identity Persistence** — IPS_proxy (routing facts stay discoverable after 10+ low-importance facts added). Current: IPS_proxy=1.0, IPS_L1=1.0.
+- **Suite E: Token Efficiency** — NFR (noise filter rate), SER (signal extraction rate), CCR (compress content ratio). Current: NFR=1.0, SER=1.0, CCR=0.99.
+- Run with: `cd plugin/mem && npm test -- tests/bench/`
+
+**Bug fixes:**
+- `supersedConflicting` used `created_at < @created_at` which fails for same-second insertions (common in tests and rapid sequential writes). Fixed to `id < @id` — auto-increment IDs are always monotonically ordered.
+- `loadLatestSnapshot` used `datetime("now")` (double quotes = column reference in SQLite). Fixed to `datetime('now')`.
 
 ### v1.4.1
 
