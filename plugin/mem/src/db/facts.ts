@@ -139,10 +139,13 @@ export class FactStore {
     // Detect tags from content
     const tags = this.extractTags(content);
 
+    // Extract git branch from observation metadata if available
+    const gitBranch = this.extractGitBranch(observation);
+
     // Insert the fact
     const stmt = this.db.prepare(
-      `INSERT INTO facts (source_observation_id, category, content, importance, project, agent, tags, content_hash)
-       VALUES (@source_observation_id, @category, @content, @importance, @project, @agent, @tags, @content_hash)
+      `INSERT INTO facts (source_observation_id, category, content, importance, project, agent, tags, content_hash, git_branch)
+       VALUES (@source_observation_id, @category, @content, @importance, @project, @agent, @tags, @content_hash, @git_branch)
        RETURNING *`
     );
 
@@ -155,7 +158,14 @@ export class FactStore {
       agent: observation.agent,
       tags: tags.length > 0 ? JSON.stringify(tags) : null,
       content_hash: hash,
+      git_branch: gitBranch,
     }) as Fact;
+
+    // Contradiction detection: supersede conflicting decisions/preferences
+    // (codenamev/claude_memory truth maintenance pattern)
+    if (category === 'decision' || category === 'preference') {
+      this.supersedConflicting(fact, tags);
+    }
 
     // Auto-rebuild L1 index every 10 facts for this project
     const factCount = (
@@ -170,6 +180,47 @@ export class FactStore {
     }
 
     return [fact];
+  }
+
+  /**
+   * Supersede conflicting facts when a new decision/preference is stored.
+   * If an existing fact shares ≥2 domain tags with the new fact AND is older,
+   * mark it as superseded by the new fact.
+   * (Truth maintenance pattern from codenamev/claude_memory)
+   */
+  private supersedConflicting(newFact: Fact, newTags: string[]): void {
+    if (newTags.length < 2) return; // Need at least 2 tags to detect domain overlap
+
+    const candidates = this.db
+      .prepare(
+        `SELECT id, tags FROM facts
+         WHERE project = @project
+           AND category = @category
+           AND superseded = 0
+           AND id != @id
+           AND created_at < @created_at`
+      )
+      .all({
+        project: newFact.project,
+        category: newFact.category,
+        id: newFact.id,
+        created_at: newFact.created_at,
+      }) as Array<{ id: number; tags: string | null }>;
+
+    for (const candidate of candidates) {
+      if (!candidate.tags) continue;
+      try {
+        const candidateTags: string[] = JSON.parse(candidate.tags);
+        const overlap = newTags.filter(t => candidateTags.includes(t)).length;
+        if (overlap >= 2) {
+          this.db.prepare(
+            `UPDATE facts SET superseded = 1, superseded_by = ? WHERE id = ?`
+          ).run(newFact.id, candidate.id);
+        }
+      } catch {
+        // Malformed tags JSON — skip
+      }
+    }
   }
 
   /**
@@ -205,7 +256,7 @@ export class FactStore {
       let sql = `
         SELECT id, category, content, importance, project, agent, tags, created_at, access_count, 0 as rank
         FROM facts
-        WHERE 1=1
+        WHERE superseded = 0
       `;
       const params: Record<string, unknown> = { limit };
 
@@ -239,6 +290,7 @@ export class FactStore {
       FROM facts_fts fts
       JOIN facts f ON f.id = fts.rowid
       WHERE facts_fts MATCH @query
+        AND f.superseded = 0
     `;
     const params: Record<string, unknown> = { query: ftsQuery, limit };
 
@@ -319,6 +371,7 @@ export class FactStore {
          FROM facts
          WHERE project = ?
            AND importance >= 5
+           AND superseded = 0
            AND content NOT LIKE 'Bash:%'
            AND content NOT LIKE 'Write:%'
            AND content NOT LIKE 'Edit:%'
@@ -413,6 +466,86 @@ export class FactStore {
       .all() as Array<{ category: string; count: number }>;
   }
 
+  /**
+   * Save a compaction snapshot — called by the PreCompact hook.
+   * Archives top facts + recent obs summaries to SQLite so they survive compaction.
+   * (ruvnet two-hook pattern)
+   */
+  saveCompactionSnapshot(project: string, gitBranch: string | null, sddState: object | null): number {
+    // Top 10 facts by importance (non-superseded)
+    const topFacts = this.db
+      .prepare(
+        `SELECT id, category, content, importance FROM facts
+         WHERE project = ? AND superseded = 0
+         ORDER BY importance DESC, access_count DESC
+         LIMIT 10`
+      )
+      .all(project) as Array<{ id: number; category: string; content: string; importance: number }>;
+
+    // Last 20 observations as summaries (id, agent, 100-char snippet)
+    const recentObs = this.db
+      .prepare(
+        `SELECT id, agent, type, substr(content, 1, 100) as snippet, created_at
+         FROM observations WHERE project = ?
+         ORDER BY id DESC LIMIT 20`
+      )
+      .all(project) as Array<{ id: number; agent: string; type: string; snippet: string; created_at: string }>;
+
+    // Rough token estimate: ~3 tokens per word, avg 12 words per fact/obs
+    const tokenEstimate = (topFacts.length + recentObs.length) * 36;
+
+    const result = this.db.prepare(
+      `INSERT INTO compaction_snapshots
+         (project, git_branch, sdd_state, top_facts, recent_obs_summary, context_tokens_estimate)
+       VALUES (@project, @git_branch, @sdd_state, @top_facts, @recent_obs, @tokens)
+       RETURNING id`
+    ).get({
+      project,
+      git_branch: gitBranch,
+      sdd_state: sddState ? JSON.stringify(sddState) : null,
+      top_facts: JSON.stringify(topFacts),
+      recent_obs: JSON.stringify(recentObs),
+      tokens: tokenEstimate,
+    }) as { id: number };
+
+    return result.id;
+  }
+
+  /**
+   * Load the latest unrestored compaction snapshot for a project.
+   * Called by the SessionStart(compact) hook to restore context.
+   */
+  loadLatestSnapshot(project: string): {
+    id: number;
+    captured_at: string;
+    git_branch: string | null;
+    sdd_state: object | null;
+    top_facts: Array<{ id: number; category: string; content: string; importance: number }>;
+    recent_obs_summary: Array<{ id: number; agent: string; type: string; snippet: string; created_at: string }>;
+  } | null {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM compaction_snapshots
+         WHERE project = ? AND restored = 0
+         ORDER BY captured_at DESC LIMIT 1`
+      )
+      .get(project) as any;
+
+    if (!row) return null;
+
+    // Mark as restored
+    this.db.prepare('UPDATE compaction_snapshots SET restored = 1, restored_at = datetime("now") WHERE id = ?').run(row.id);
+
+    return {
+      id: row.id,
+      captured_at: row.captured_at,
+      git_branch: row.git_branch,
+      sdd_state: row.sdd_state ? JSON.parse(row.sdd_state) : null,
+      top_facts: JSON.parse(row.top_facts || '[]'),
+      recent_obs_summary: JSON.parse(row.recent_obs_summary || '[]'),
+    };
+  }
+
   // --- Private helpers ---
 
   /**
@@ -420,6 +553,26 @@ export class FactStore {
    */
   private isNoise(content: string): boolean {
     return NOISE_PATTERNS.some(p => p.test(content));
+  }
+
+  /**
+   * Extract git branch from observation metadata or content.
+   * (mcp-memory-keeper branch correlation pattern)
+   */
+  private extractGitBranch(observation: Observation): string | null {
+    // Check metadata.branch first (most reliable)
+    if (observation.metadata) {
+      try {
+        const meta = JSON.parse(observation.metadata);
+        if (meta.branch && typeof meta.branch === 'string') {
+          return meta.branch.substring(0, 100);
+        }
+      } catch { /* skip */ }
+    }
+    // Check content for branch mentions (e.g., "on branch feature/auth")
+    const branchMatch = observation.content.match(/\bon branch[:\s]+([a-zA-Z0-9/_.-]+)/i);
+    if (branchMatch) return branchMatch[1].substring(0, 100);
+    return null;
   }
 
   /**

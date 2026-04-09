@@ -611,6 +611,59 @@ export function createRoutes(db: Database.Database): Router {
     }
   });
 
+  // --- Compaction snapshot endpoints (ruvnet two-hook pattern) ---
+
+  // Save a compaction snapshot (called by PreCompact hook)
+  router.post('/api/compaction/snapshot', (req: Request, res: Response) => {
+    try {
+      const { project = 'default', git_branch, sdd_state } = req.body;
+      const snapshotId = factStore.saveCompactionSnapshot(project, git_branch || null, sdd_state || null);
+      res.status(201).json({ id: snapshotId, status: 'saved' });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // Get latest compaction snapshot (called by SessionStart compact hook or mem_compact_context MCP tool)
+  router.get('/api/compaction/snapshot', (req: Request, res: Response) => {
+    try {
+      const { project = 'default' } = req.query;
+      const snapshot = factStore.loadLatestSnapshot(project as string);
+      if (!snapshot) {
+        res.json({ found: false, message: 'No unrestored compaction snapshot found.' });
+        return;
+      }
+      res.json({ found: true, snapshot });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // Branch-scoped facts (mcp-memory-keeper pattern)
+  router.get('/api/facts/branch', (req: Request, res: Response) => {
+    try {
+      const { branch, project, limit } = req.query;
+      if (!branch) {
+        res.status(400).json({ error: 'Missing required parameter: branch' });
+        return;
+      }
+      const results = db
+        .prepare(
+          `SELECT id, category, content, importance, agent, tags, created_at
+           FROM facts
+           WHERE git_branch = @branch
+             AND superseded = 0
+             ${project ? 'AND project = @project' : ''}
+           ORDER BY importance DESC, created_at DESC
+           LIMIT @limit`
+        )
+        .all({ branch, project: project || null, limit: limit ? parseInt(limit as string) : 10 });
+      res.json({ content: [{ type: 'text', text: formatFactResults(results) }] });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
   // List categories with counts for a project
   router.get('/api/facts/categories', (req: Request, res: Response) => {
     try {

@@ -6,18 +6,19 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/pre-compact.sh",
-            "timeout": 10
+            "timeout": 15
           }
         ]
       }
     ],
-    "PostCompact": [
+    "SessionStart": [
       {
+        "matcher": "compact",
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/post-compact.sh",
-            "timeout": 10
+            "command": "bash .claude/hooks/session-start-compact.sh",
+            "timeout": 15
           }
         ]
       }

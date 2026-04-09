@@ -33,6 +33,25 @@ export function runMigrations(db: Database.Database): void {
 
   // Use exec to run the full schema at once — it handles multi-statement blocks (triggers, etc.)
   db.exec(schema);
+
+  // Incremental column migrations — idempotent via PRAGMA table_info
+  // These add columns to existing tables without requiring a full schema drop/recreate.
+  const factColumns = (db.pragma('table_info(facts)') as Array<{ name: string }>).map(c => c.name);
+
+  // superseded + superseded_by: contradiction detection (codenamev/claude_memory pattern)
+  if (!factColumns.includes('superseded')) {
+    db.exec('ALTER TABLE facts ADD COLUMN superseded INTEGER DEFAULT 0');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_facts_superseded ON facts(superseded)');
+  }
+  if (!factColumns.includes('superseded_by')) {
+    db.exec('ALTER TABLE facts ADD COLUMN superseded_by INTEGER REFERENCES facts(id)');
+  }
+
+  // git_branch: branch correlation for context-aware recall (mcp-memory-keeper pattern)
+  if (!factColumns.includes('git_branch')) {
+    db.exec('ALTER TABLE facts ADD COLUMN git_branch TEXT');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_facts_branch ON facts(git_branch)');
+  }
 }
 
 export function closeDatabase(db: Database.Database): void {

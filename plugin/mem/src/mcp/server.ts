@@ -157,6 +157,30 @@ NEVER fetch full details without filtering first. 10x token savings.`,
     }
   },
   {
+    name: 'mem_compact_context',
+    description: 'CALL FIRST after compaction. Retrieves the pre-compaction snapshot: top facts, recent observations, and active SDD pipeline state. Restores context that the compaction summary may have dropped. Params: project (required)',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        project: { type: 'string', description: 'Project name to restore context for' }
+      },
+      required: ['project']
+    }
+  },
+  {
+    name: 'mem_branch',
+    description: 'Get facts and decisions associated with a git branch. Use when switching branches to surface relevant past context. Params: branch (required), project, limit',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        branch: { type: 'string', description: 'Git branch name' },
+        project: { type: 'string', description: 'Filter by project' },
+        limit: { type: 'number', description: 'Max results (default 10)' }
+      },
+      required: ['branch']
+    }
+  },
+  {
     name: 'episode_store',
     description: 'Store a verified successful task solution for future recall. ONLY call after a task is confirmed successful (tests pass, review approved). Params: agent, task_summary, solution_summary, files_touched, project',
     inputSchema: {
@@ -253,6 +277,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           if (v != null) params.append(k, String(v));
         }
         return await callWorker(`/api/episodes/search?${params}`);
+      }
+
+      case 'mem_compact_context': {
+        const params = new URLSearchParams();
+        if ((args as any)?.project) params.append('project', String((args as any).project));
+        const result = await callWorker(`/api/compaction/snapshot?${params}`);
+        if (!result.found) {
+          return { content: [{ type: 'text', text: 'No compaction snapshot found. Memory context is clean (no recent compaction).' }] };
+        }
+        const snap = result.snapshot;
+        const lines = [
+          `## Compaction Context Restored`,
+          `Captured: ${snap.captured_at} | Branch: ${snap.git_branch || 'unknown'}`,
+          '',
+          '### Active SDD Pipeline',
+          snap.sdd_state
+            ? `Phase ${snap.sdd_state.current_phase} | Task: ${snap.sdd_state.task}`
+            : 'No active SDD pipeline at compaction time.',
+          '',
+          '### Top Facts Before Compaction',
+          ...(snap.top_facts || []).map((f: any) =>
+            `[${f.category}] (${f.importance}) ${f.content}`
+          ),
+          '',
+          '### Recent Activity Before Compaction',
+          ...(snap.recent_obs_summary || []).slice(0, 10).map((o: any) =>
+            `${o.agent} (${o.type}): ${o.snippet}`
+          ),
+        ];
+        return { content: [{ type: 'text', text: lines.join('\n') }] };
+      }
+
+      case 'mem_branch': {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(args || {})) {
+          if (v != null) params.append(k, String(v));
+        }
+        return await callWorker(`/api/facts/branch?${params}`);
       }
 
       case 'episode_store':

@@ -116,6 +116,24 @@ CREATE TRIGGER IF NOT EXISTS facts_ad AFTER DELETE ON facts BEGIN
   VALUES ('delete', old.id, old.content, old.category, old.tags, old.project);
 END;
 
+-- Compaction snapshots: created by PreCompact hook, restored by SessionStart(source:compact)
+-- Implements the ruvnet two-hook pattern: archive before summary, restore after
+CREATE TABLE IF NOT EXISTS compaction_snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project TEXT NOT NULL DEFAULT 'default',
+  captured_at TEXT NOT NULL DEFAULT (datetime('now')),
+  git_branch TEXT,                    -- branch at capture time (mcp-memory-keeper pattern)
+  sdd_state TEXT,                     -- JSON: active SDD pipeline if any
+  top_facts TEXT NOT NULL DEFAULT '[]',        -- JSON: top 10 facts by importance
+  recent_obs_summary TEXT NOT NULL DEFAULT '[]', -- JSON: last 20 obs (id, agent, snippet)
+  context_tokens_estimate INTEGER DEFAULT 0,
+  restored INTEGER DEFAULT 0,         -- 1 once this snapshot has been used for recovery
+  restored_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_project ON compaction_snapshots(project);
+CREATE INDEX IF NOT EXISTS idx_snapshots_captured ON compaction_snapshots(captured_at DESC);
+
 -- Memory index: L1 always-loaded summary per project
 -- Inspired by the 59-compaction system's MEMORY.md
 CREATE TABLE IF NOT EXISTS memory_index (
