@@ -527,8 +527,34 @@ def migrate_project(project_path: Path, delegation_block: str | None, apply: boo
 
     print(f"\n  Project: {project_path}")
 
-    # 1. Sync delegation block in CLAUDE.md
+    # 0. Bootstrap CLAUDE.md if missing
     claude_md = project_path / "CLAUDE.md"
+    if not claude_md.exists():
+        project_name = project_path.name
+        bootstrap = (
+            f"# {project_name} — Execution-OS\n\n"
+            f"<!-- WANTAN:DELEGATION:START -->\n"
+            f"<!-- WANTAN:DELEGATION:END -->\n\n"
+            f"## Project Overview\n\n"
+            f"*Add project-specific context here.*\n\n"
+            f"## Session Management\n\n"
+            f"**After Compaction** — when \"Conversation compacted\" appears mid-session, BEFORE doing anything else:\n"
+            f"1. **Re-read this file** (`CLAUDE.md`) to restore the full delegation table and identity rules\n"
+            f"2. **Re-affirm**: You are Wantan — an orchestrator. Never execute directly. Never use `Explore` or `general-purpose` as squad substitutes.\n"
+            f"3. Check `.claude/tasks/todo.md` for in-progress work and resume via the correct squad member\n\n"
+            f"**Session Start** — at the start of every new conversation:\n"
+            f"1. Review `.claude/tasks/lessons.md` for relevant patterns (silent)\n"
+            f"2. Check `.claude/tasks/SESSION-HANDOFF.md` — if it exists, load context and delete it\n"
+            f"3. Run `/today`\n"
+            f"4. Check `.claude/tasks/todo.md` for in-progress work\n"
+        )
+        if apply:
+            claude_md.write_text(bootstrap, encoding="utf-8")
+            print("  ✓  CLAUDE.md bootstrapped (fill in ## Project Overview)")
+        else:
+            print("  ○  Would bootstrap CLAUDE.md (no file found)")
+
+    # 1. Sync delegation block in CLAUDE.md
     if claude_md.exists() and delegation_block:
         text = claude_md.read_text(encoding="utf-8")
         if MARKER_START in text:
