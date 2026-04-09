@@ -1,18 +1,28 @@
 #!/usr/bin/env python3
 """
-migrate.py — Upgrade existing Execution-OS projects to v1.4.0
+migrate.py — Upgrade existing Execution-OS projects to v2.0.0
 
-Handles:
-  1. CLAUDE.md delegation block sync (same as sync-delegation.py)
-  2. wantan-mem database migration:
-     - Create episodes table (v1.4.0)
-     - Scrub credentials from existing observations and facts
-     - Prune noise observations (git status, ls, cat, etc.)
-     - Clean up orphaned worktree project data
-     - Rebuild L1 indexes with quality filters
-  3. Vault MANIFEST.md generation
-  4. .claude/context/ directory creation (context bus)
-  5. Dead table cleanup (pr_observations, test_observations, security_observations)
+Handles all migrations from v1.x → v2.0.0 (and is safe to re-run):
+
+  DB migrations (wantan-mem.db — shared, run once):
+    - Create compaction_snapshots table (v2.0.0)
+    - Add facts.superseded, superseded_by, git_branch columns (v2.0.0)
+    - Create episodes table (v1.4.0)
+    - Scrub credentials from existing observations and facts
+    - Prune noise observations (git status, ls, cat, etc.)
+    - Clean up orphaned worktree project data
+    - Rebuild L1 indexes with quality filters
+
+  Per-project migrations:
+    - CLAUDE.md delegation block sync
+    - Deploy .claude/context-essentials.md  (v2.0.0 — compaction anchor)
+    - Update .claude/hooks/pre-compact.sh   (v2.0.0 — rewritten)
+    - Deploy .claude/hooks/session-start-compact.sh  (v2.0.0 — new)
+    - Patch .claude/settings.json: add SessionStart(compact) hook,
+      remove PostCompact if present (v2.0.0)
+    - Vault MANIFEST.md generation
+    - .claude/context/ directory creation (context bus)
+    - Dead table cleanup (pr_observations, test_observations, security_observations)
 
 Usage:
     python3 migrate.py                          # dry run — shows what would change
@@ -35,6 +45,7 @@ from pathlib import Path
 
 PLUGIN_ID = "execution-os-devteam@execution-os-devteam"
 TEMPLATE_PATH = Path(__file__).parent / "vault" / "CLAUDE.md"
+VAULT_DOT_CLAUDE = Path(__file__).parent / "vault" / ".claude"
 INSTALLED_PLUGINS_PATH = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
 WANTAN_MEM_DB = Path.home() / ".wantan-mem" / "wantan-mem.db"
 
@@ -101,8 +112,69 @@ def migrate_database(apply: bool) -> dict:
     db = sqlite3.connect(str(WANTAN_MEM_DB))
     db.row_factory = sqlite3.Row
 
-    # 1. Create episodes table if not exists
+    # ── v2.0.0 migrations ─────────────────────────────────────────────────
+
+    # 0a. compaction_snapshots table (ruvnet two-hook pattern)
     tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+    if "compaction_snapshots" not in tables:
+        stats["episodes_table"] = True  # reuse flag for reporting
+        if apply:
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS compaction_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project TEXT NOT NULL DEFAULT 'default',
+                    captured_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    git_branch TEXT,
+                    sdd_state TEXT,
+                    top_facts TEXT NOT NULL DEFAULT '[]',
+                    recent_obs_summary TEXT NOT NULL DEFAULT '[]',
+                    context_tokens_estimate INTEGER DEFAULT 0,
+                    restored INTEGER DEFAULT 0,
+                    restored_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_snapshots_project ON compaction_snapshots(project);
+                CREATE INDEX IF NOT EXISTS idx_snapshots_captured ON compaction_snapshots(captured_at DESC);
+            """)
+            print("  ✓  Created compaction_snapshots table")
+        else:
+            print("  ○  Would create compaction_snapshots table")
+    else:
+        print("  ─  compaction_snapshots table already exists")
+
+    # 0b. facts columns: superseded, superseded_by, git_branch
+    fact_cols = [r[1] for r in db.execute("PRAGMA table_info(facts)").fetchall()]
+    new_cols = 0
+
+    if "superseded" not in fact_cols:
+        new_cols += 1
+        if apply:
+            db.execute("ALTER TABLE facts ADD COLUMN superseded INTEGER DEFAULT 0")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_facts_superseded ON facts(superseded)")
+    if "superseded_by" not in fact_cols:
+        new_cols += 1
+        if apply:
+            db.execute("ALTER TABLE facts ADD COLUMN superseded_by INTEGER REFERENCES facts(id)")
+    if "git_branch" not in fact_cols:
+        new_cols += 1
+        if apply:
+            db.execute("ALTER TABLE facts ADD COLUMN git_branch TEXT")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_facts_branch ON facts(git_branch)")
+
+    if new_cols > 0:
+        if apply:
+            db.commit()
+            print(f"  ✓  Added {new_cols} column(s) to facts table (superseded, superseded_by, git_branch)")
+        else:
+            print(f"  ○  Would add {new_cols} column(s) to facts table (superseded, superseded_by, git_branch)")
+    else:
+        print("  ─  facts table already has v2.0.0 columns")
+
+    # ── v1.4.0 migrations (kept for first-time installs) ──────────────────
+
+    # Refresh tables list after v2.0.0 DDL above
+    tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+
+    # 1. Create episodes table if not exists
     if "episodes" not in tables:
         stats["episodes_table"] = True
         if apply:
@@ -328,6 +400,127 @@ def generate_manifest(vault_path: Path, apply: bool) -> bool:
     return True
 
 
+def migrate_v200_hooks(project_path: Path, apply: bool) -> dict:
+    """
+    v2.0.0: Deploy anti-compaction drift infrastructure to a project.
+    - context-essentials.md — identity anchor injected post-compaction
+    - pre-compact.sh        — updated hook (archives snapshot before compaction)
+    - session-start-compact.sh — new hook (restores context after compaction)
+    - settings.json         — add SessionStart(matcher:compact), remove PostCompact
+    """
+    stats = {"essentials": False, "pre_compact": False, "session_start": False, "settings": False}
+
+    project_dot_claude = project_path / ".claude"
+    if not project_dot_claude.exists():
+        print("  ─  No .claude/ directory — skipping hook migration")
+        return stats
+
+    hooks_dir = project_dot_claude / "hooks"
+
+    # 1. context-essentials.md
+    src = VAULT_DOT_CLAUDE / "context-essentials.md"
+    dst = project_dot_claude / "context-essentials.md"
+    if src.exists():
+        if not dst.exists():
+            stats["essentials"] = True
+            if apply:
+                dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+                print("  ✓  Deployed .claude/context-essentials.md")
+            else:
+                print("  ○  Would deploy .claude/context-essentials.md")
+        else:
+            print("  ─  .claude/context-essentials.md already exists")
+    else:
+        print(f"  ⚠  Source not found: {src}")
+
+    # 2. pre-compact.sh (overwrite — hook was rewritten in v2.0.0)
+    src = VAULT_DOT_CLAUDE / "hooks" / "pre-compact.sh"
+    if src.exists() and hooks_dir.exists():
+        dst = hooks_dir / "pre-compact.sh"
+        src_text = src.read_text(encoding="utf-8")
+        dst_text = dst.read_text(encoding="utf-8") if dst.exists() else ""
+        if src_text != dst_text:
+            stats["pre_compact"] = True
+            if apply:
+                dst.write_text(src_text, encoding="utf-8")
+                dst.chmod(0o755)
+                print("  ✓  Updated .claude/hooks/pre-compact.sh")
+            else:
+                print("  ○  Would update .claude/hooks/pre-compact.sh")
+        else:
+            print("  ─  pre-compact.sh already up to date")
+
+    # 3. session-start-compact.sh (new in v2.0.0)
+    src = VAULT_DOT_CLAUDE / "hooks" / "session-start-compact.sh"
+    if src.exists():
+        if not hooks_dir.exists():
+            if apply:
+                hooks_dir.mkdir(parents=True, exist_ok=True)
+        dst = hooks_dir / "session-start-compact.sh"
+        if not dst.exists():
+            stats["session_start"] = True
+            if apply:
+                dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+                dst.chmod(0o755)
+                print("  ✓  Deployed .claude/hooks/session-start-compact.sh")
+            else:
+                print("  ○  Would deploy .claude/hooks/session-start-compact.sh")
+        else:
+            print("  ─  session-start-compact.sh already exists")
+
+    # 4. settings.json — add SessionStart(compact), remove PostCompact
+    settings_path = project_dot_claude / "settings.json"
+    if settings_path.exists():
+        try:
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            print("  ⚠  Could not parse .claude/settings.json — skipping")
+            return stats
+
+        hooks = settings.setdefault("hooks", {})
+        changed = False
+
+        # Remove PostCompact — this hook event doesn't exist in Claude Code
+        if "PostCompact" in hooks:
+            del hooks["PostCompact"]
+            changed = True
+            print("  ─  Removed non-existent PostCompact hook from settings.json")
+
+        # Add SessionStart with matcher:"compact" if not already present
+        session_start = hooks.get("SessionStart", [])
+        has_compact = any(
+            isinstance(h, dict) and h.get("matcher") == "compact"
+            for h in session_start
+        )
+        if not has_compact:
+            session_start.append({
+                "matcher": "compact",
+                "hooks": [{
+                    "type": "command",
+                    "command": "bash .claude/hooks/session-start-compact.sh",
+                    "timeout": 15,
+                }]
+            })
+            hooks["SessionStart"] = session_start
+            changed = True
+
+        if changed:
+            stats["settings"] = True
+            if apply:
+                settings_path.write_text(
+                    json.dumps(settings, indent=2) + "\n", encoding="utf-8"
+                )
+                print("  ✓  Patched .claude/settings.json (SessionStart hook)")
+            else:
+                print("  ○  Would patch .claude/settings.json (SessionStart hook)")
+        else:
+            print("  ─  .claude/settings.json already has SessionStart(compact) hook")
+    else:
+        print("  ─  No .claude/settings.json — skipping settings patch")
+
+    return stats
+
+
 def migrate_project(project_path: Path, delegation_block: str | None, apply: bool) -> dict:
     """Run all project-level migrations."""
     stats = {"delegation": "skip", "manifest": False, "context_bus": False}
@@ -375,7 +568,10 @@ def migrate_project(project_path: Path, delegation_block: str | None, apply: boo
     else:
         print("  ─  No vault/ directory")
 
-    # 3. Create .claude/context/ directory (context bus)
+    # 3a. v2.0.0 hook + settings migration
+    migrate_v200_hooks(project_path, apply)
+
+    # 3b. Create .claude/context/ directory (context bus)
     context_dir = project_path / ".claude" / "context"
     if not context_dir.exists():
         stats["context_bus"] = True
@@ -403,7 +599,7 @@ def main():
         if idx + 1 < len(sys.argv):
             single_path = Path(sys.argv[idx + 1])
 
-    print(f"Execution-OS v1.4.0 Migration {'(DRY RUN)' if not apply else '(APPLYING)'}")
+    print(f"Execution-OS v2.0.0 Migration {'(DRY RUN)' if not apply else '(APPLYING)'}")
     print(f"{'=' * 60}\n")
 
     # Load delegation template
@@ -452,8 +648,10 @@ def main():
         print("Migration complete.")
         print("\nNext steps:")
         print("  1. Restart wantan-mem worker: cd plugin/mem && npx tsx src/worker/server.ts")
+        print("     (worker restart auto-applies DB schema changes via runMigrations)")
         print("  2. Reload plugins in Claude Code: /reload-plugins")
-        print("  3. Verify with: wantan, check memory health")
+        print("  3. Verify delegation still works: tell wantan to 'build X' — should route to Lelouch")
+        print("  4. Verify compaction recovery: /compact, then check Wantan delegates correctly")
 
 
 if __name__ == "__main__":
