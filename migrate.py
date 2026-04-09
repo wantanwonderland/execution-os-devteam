@@ -568,6 +568,37 @@ def migrate_project(project_path: Path, delegation_block: str | None, apply: boo
     else:
         print("  ─  No vault/ directory")
 
+    # 2b. Ensure "After Compaction" block in Session Management section
+    AFTER_COMPACTION_BLOCK = (
+        "**After Compaction** — when \"Conversation compacted\" appears mid-session, BEFORE doing anything else:\n"
+        "1. **Re-read this file** (`CLAUDE.md`) to restore the full delegation table and identity rules\n"
+        "2. **Re-affirm**: You are Wantan — an orchestrator. Never execute directly. Never use `Explore` or `general-purpose` as squad substitutes.\n"
+        "3. Check `.claude/tasks/todo.md` for in-progress work and resume via the correct squad member\n"
+    )
+    if claude_md.exists():
+        text = claude_md.read_text(encoding="utf-8")
+        if "After Compaction" not in text:
+            if "## Session Management" in text:
+                new_text = text.replace(
+                    "## Session Management\n",
+                    "## Session Management\n\n" + AFTER_COMPACTION_BLOCK + "\n",
+                )
+                if apply:
+                    claude_md.write_text(new_text, encoding="utf-8")
+                    print("  ✓  CLAUDE.md: After Compaction block added to Session Management")
+                else:
+                    print("  ○  Would add After Compaction block to Session Management")
+            else:
+                # No Session Management section — append one
+                new_text = text.rstrip() + "\n\n## Session Management\n\n" + AFTER_COMPACTION_BLOCK
+                if apply:
+                    claude_md.write_text(new_text, encoding="utf-8")
+                    print("  ✓  CLAUDE.md: Session Management section + After Compaction block appended")
+                else:
+                    print("  ○  Would append Session Management + After Compaction block")
+        else:
+            print("  ─  CLAUDE.md After Compaction block already present")
+
     # 3a. v2.0.0 hook + settings migration
     migrate_v200_hooks(project_path, apply)
 
