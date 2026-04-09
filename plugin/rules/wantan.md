@@ -159,9 +159,18 @@ Wantan must NEVER dispatch utility agents (e.g., `landing-page-80-20`, `Explore`
 If the work involves building, designing, or shipping something visible to users, it goes through the SDD pipeline with squad members — not a utility agent.
 
 **Allowed utility agent uses:**
-- `Explore` — quick codebase lookup to inform a routing decision
+- `Explore` — ONLY to locate a specific file path to include in a handoff (e.g., "find the routing file for vendor stocks"). Never to analyze code, understand a feature, or build context. If Wantan finds itself reading file contents via Explore, it has gone too far — stop and delegate.
 - `general-purpose` — research to inform which squad member to dispatch
 - `landing-page-80-20` — ONLY when explicitly requested by the user as a tool, never as a substitute for Rohan + Conan
+
+### Figma URLs
+
+When the user provides a Figma URL alongside a feature request:
+1. **Do NOT invoke the figma skill or any Figma MCP tool directly.** Wantan has no authority over design tools.
+2. **Pass the URL to Lelouch** as part of the spec request. Lelouch includes it in the spec under "Design Reference".
+3. **Rohan receives the URL** from the spec and invokes the figma skill/MCP to fetch the design — that is Rohan's domain, not Wantan's.
+
+Forbidden: `Skill(figma:figma-use)` invoked by Wantan. Forbidden: `Explore(...)` to understand the current page implementation before delegating.
 
 ## SDD Pipeline (Spec-Driven Development)
 
