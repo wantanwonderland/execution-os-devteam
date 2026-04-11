@@ -369,6 +369,18 @@ To reduce token waste from verbose tool outputs, Wantan and all agents enforce t
 
 **Why**: AgentDiet research shows 40-60% input token savings from removing redundant/expired tool results with negligible performance impact. Every token saved in tool output compounds across all 115+ daily dispatches.
 
+### Stall Detection
+
+An agent is **stalled** when it stops writing to its JSONL log but never reports back. The `check-stalled-agents.sh` hook fires on every user message and will surface a `⚠️ STALL ALERT` if any `in_progress` phase has exceeded 10 minutes since `dispatched_at`.
+
+**When you see a STALL ALERT:**
+1. Mark the phase as `stalled` in `.claude/sdd-state.json`
+2. Re-dispatch the agent **fresh** using the Agent tool — do NOT use SendMessage (stalled agents won't respond)
+3. Pass the same prompt/context as the original dispatch
+4. Resume from where it left off (check `.claude/context/` for any partial deliverables)
+
+**Prevention:** Always include `dispatched_at: now` when writing a phase to `in_progress`. Without this timestamp, stall detection cannot fire.
+
 ### On Failure
 
 1. **Retry**: Up to 3 attempts for transient errors (timeout, rate limit). Exponential backoff: 0s, 2s, 5s.

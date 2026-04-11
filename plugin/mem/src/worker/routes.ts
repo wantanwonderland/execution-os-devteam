@@ -117,7 +117,19 @@ export function createRoutes(db: Database.Database): Router {
         days ? parseInt(days as string) : 7,
         project as string
       );
-      res.json({ content: [{ type: 'text', text: formatSearchResults(results) }] });
+
+      // Surface liveness metadata: last activity time + stall flag (>10 min silence = stalled)
+      const STALL_THRESHOLD_MS = 10 * 60 * 1000;
+      const lastActivityAt = results.length > 0 ? results[0].created_at : null;
+      const isStalled = lastActivityAt
+        ? Date.now() - new Date(lastActivityAt).getTime() > STALL_THRESHOLD_MS
+        : false;
+
+      res.json({
+        content: [{ type: 'text', text: formatSearchResults(results) }],
+        last_activity_at: lastActivityAt,
+        is_stalled: isStalled,
+      });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }

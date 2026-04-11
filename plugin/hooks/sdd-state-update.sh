@@ -31,9 +31,19 @@ except:
     sys.exit(0)
 
 tool_input = hook_input.get('tool_input', {})
+tool_response = hook_input.get('tool_response', {})
 prompt = tool_input.get('prompt', '').lower()
 desc = tool_input.get('description', '').lower()
 agent_info = desc + ' ' + prompt[:300]
+
+# Capture agent_id from tool response (background agents return an ID)
+returned_agent_id = None
+if isinstance(tool_response, dict):
+    returned_agent_id = (
+        tool_response.get('agent_id')
+        or tool_response.get('id')
+        or (tool_response.get('content', [{}])[0] if tool_response.get('content') else {}).get('agent_id')
+    )
 
 # Read state
 state_file = '.claude/sdd-state.json'
@@ -82,6 +92,11 @@ if not detected_agent:
     sys.exit(0)
 
 now = datetime.now().isoformat()
+
+# Store agent_id in agent_ids map if we got one from tool response
+if returned_agent_id and detected_agent:
+    agent_ids_map = state.setdefault('agent_ids', {})
+    agent_ids_map[detected_agent] = returned_agent_id
 
 if detected_agent == 'lelouch':
     phases['1_spec'] = {'status': 'completed', 'agent': 'lelouch', 'completed_at': now}

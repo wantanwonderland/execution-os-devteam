@@ -8,7 +8,7 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -896,6 +896,22 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v2.1.0
+
+**Stall detection — agents that freeze mid-task are now caught automatically.**
+
+The reliability gap this closes: background agents (Conan, Killua, etc.) could freeze mid-execution with no hook firing, leaving `in_progress` phases in `sdd-state.json` indefinitely. The orchestrator had no way to distinguish "still running" from "silently dead", so it would wait forever.
+
+**How it works:**
+- **`check-stalled-agents.sh` hook** — fires on every `UserPromptSubmit`. Reads `.claude/sdd-state.json` and checks all `in_progress` phases against their `dispatched_at` timestamp. If any agent has been running > 10 minutes without completing, a `⚠️ STALL ALERT` is injected into Wantan's context.
+- **JSONL mtime confirmation** — if the agent's ID is stored in `agent_ids`, the hook also checks the agent's JSONL log file modification time via `~/.claude/projects/.../subagents/agent-{id}.jsonl` for a second confirmation signal.
+- **`dispatched_at` field** — phases now record when the agent was dispatched. Wantan is required to include this when writing any phase to `in_progress`. Without it, stall detection cannot fire.
+- **Agent ID capture** — `sdd-state-update.sh` now reads `tool_response` on PostToolUse Agent to extract and store the returning agent ID in `agent_ids`, enabling JSONL confirmation on subsequent stall checks.
+- **`/api/agents` liveness** — the wantan-mem endpoint now returns `last_activity_at` and `is_stalled` (true if last observation > 10 min ago) alongside existing activity results.
+- **`stalled` phase status** — added as a valid phase state in the SDD schema. When Wantan receives a stall alert, it marks the phase `stalled` and re-dispatches fresh (not SendMessage — stalled agents won't respond).
+
+**Applies to both execution-os-devteam and downstream projects** (e.g. Jodoh) via the same hook pattern registered in `settings.json`.
 
 ### v2.0.0
 

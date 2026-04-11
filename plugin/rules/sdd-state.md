@@ -15,12 +15,12 @@ Wantan MUST write and maintain this file during any SDD pipeline execution. The 
   "current_phase": 1,
   "phases": {
     "1_spec": { "status": "completed", "agent": "lelouch" },
-    "2_design": { "status": "in_progress | completed | skipped", "agent": "rohan" },
+    "2_design": { "status": "in_progress | completed | skipped | stalled", "agent": "rohan", "dispatched_at": "ISO-8601 — set when status = in_progress" },
     "2_architecture": { "status": "pending | completed | skipped", "agent": "senku" },
-    "2_tests": { "status": "pending | completed", "agent": "killua" },
-    "2_backend": { "status": "pending | completed", "agent": "conan" },
+    "2_tests": { "status": "pending | in_progress | completed | stalled", "agent": "killua", "dispatched_at": "ISO-8601 — set when status = in_progress" },
+    "2_backend": { "status": "pending | in_progress | completed | stalled", "agent": "conan", "dispatched_at": "ISO-8601 — set when status = in_progress" },
     "2_security": { "status": "pending | completed", "agent": "itachi" },
-    "3_frontend": { "status": "blocked | in_progress | completed", "agent": "conan" },
+    "3_frontend": { "status": "blocked | in_progress | completed | stalled", "agent": "conan", "dispatched_at": "ISO-8601 — set when status = in_progress" },
     "3.5_live_tests": { "status": "pending | completed", "agent": "killua" },
     "4_review": { "status": "pending | completed", "agent": "diablo" },
     "4.5_security_gate": { "status": "pending | completed", "agent": "itachi" },
@@ -57,7 +57,8 @@ Wantan MUST write and maintain this file during any SDD pipeline execution. The 
 |-------|--------|
 | User says "build X" / SDD pipeline starts | Create `.claude/sdd-state.json` with Phase 1 `in_progress`. Create `.claude/context/` directory. |
 | User approves spec | Set `spec_approved: true`, advance to Phase 2 (Byakuya merged into Lelouch) |
-| Dispatching Phase 2 agents | Set each dispatched agent's status to `in_progress`. **Store agent IDs** in `agent_ids` for SendMessage continuation. If `ui_classification: NO`, set `2_design` to `skipped`. |
+| Dispatching Phase 2 agents | Set each dispatched agent's status to `in_progress` **with `dispatched_at: now`**. Store agent IDs in `agent_ids`. If `ui_classification: NO`, set `2_design` to `skipped`. |
+| Agent detected as stalled | Set phase status to `stalled`. Re-dispatch the agent fresh (not SendMessage). See `plugin/hooks/check-stalled-agents.sh`. |
 | Rohan returns | Set `rohan_delivered: true`, `2_design: completed`. Verify `.claude/context/design.json` exists. |
 | Killua returns tests | Set `tests_written: true`, `2_tests: completed`. Verify `.claude/context/tests.json` exists. |
 | Conan backend returns | Set `backend_complete: true`, `2_backend: completed`. Verify `.claude/context/backend.json` exists. |
@@ -92,9 +93,12 @@ else:
     state = {}
 
 # Update fields (replace with actual updates)
-state['updated_at'] = datetime.now().isoformat()
+now = datetime.now().isoformat()
+state['updated_at'] = now
 # state['gates']['spec_approved'] = True
 # state['current_phase'] = 2
+# When setting a phase to in_progress, ALWAYS include dispatched_at:
+# state['phases']['2_design'] = {'status': 'in_progress', 'agent': 'rohan', 'dispatched_at': now}
 
 with open(state_file, 'w') as f:
     json.dump(state, f, indent=2)
