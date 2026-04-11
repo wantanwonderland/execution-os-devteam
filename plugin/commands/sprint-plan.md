@@ -2,7 +2,11 @@ Sprint planning ceremony. Set goals for the upcoming sprint based on velocity da
 
 ## Steps
 
-1. **Velocity baseline**: Dispatch Kazuma to query `sprint_metrics` for the last 3 sprints. Show: committed vs completed, velocity trend (up/down/flat).
+0. **Carryover context**: Check if `.claude/tasks/sprint-carryover-pending.md` exists.
+   - If YES: Read it. Present the carry-forward items table to the user before asking for sprint goals. Say: "Before we set goals — here's what carried over from last sprint:" Then ask: "Which of these do you want to fold into this sprint? Any to drop?" Delete the file after loading.
+   - If NO: Proceed silently.
+
+1. **Velocity baseline**: Dispatch Kazuma to query `sprint_metrics` for the last 3 sprints. Show: committed vs completed, velocity trend (up/down/flat). If carryover rate from last sprint exceeded 15%, flag: "Last sprint carried over {pct}% — consider reducing commitment this sprint."
 
 2. **Backlog review**: Show open issues/PRs and tech debt items from `tech_debt` table. Group by priority.
 

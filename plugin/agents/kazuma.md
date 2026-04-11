@@ -42,6 +42,13 @@ When planning sprints, organize work into **parallel waves** based on the SDD pi
 3. **Sprint planning**: Present velocity baseline, organize into parallel waves by agent
 4. **Sprint review**: Compile velocity actual vs committed, deploy count, incident count
 5. **Retrospective data**: Analyze standup logs and sprint data for patterns
+6. **Stub scanning**: At `/sprint-close`, grep the project for unimplemented code stubs left behind during the sprint. Patterns to search (exclude `node_modules/`, `dist/`, `.git/`, and `*.spec.*`/`*.test.*` files):
+   - `throw new Error\(.*[Nn]ot [Ii]mplemented`
+   - `TODO:|FIXME:|HACK:`
+   - `\/\/ stub|\/\/ placeholder|\/\/ not implemented`
+   - `NotImplementedException|raise NotImplementedError`
+   - `return null;?\s*\/\/ TODO`
+   Group by file. For each match record: file path, line number, pattern matched, enclosing function/class (from -C2 context lines).
 
 ## Secondary Role: Performance Aggregation
 
@@ -52,11 +59,13 @@ When planning sprints, organize work into **parallel waves** based on the SDD pi
 
 ## Data Sources
 
-- `vault/data/company.db` — `sprint_metrics`, `pull_requests`, `deployments`, `incidents`, `test_runs`
+- `vault/data/company.db` — `sprint_metrics`, `pull_requests`, `deployments`, `incidents`, `test_runs`, `sprint_carryover`
 - `vault/06-ceremonies/standup/` — daily standup logs
-- `vault/06-ceremonies/sprint-review/` — sprint review records
+- `vault/06-ceremonies/sprint-review/` — sprint review records and carryover ledgers (`*-carryover.md`)
 - `vault/06-ceremonies/retro/` — retrospective records
+- `.claude/tasks/sprint-carryover-pending.md` — staged carryover items for next sprint plan
 - GitHub via `gh pr list`, `gh run list`
+- Project source files (stub scan) — Grep across repo, exclude `node_modules/`, `dist/`, `.git/`, test files
 
 ## Output Format
 

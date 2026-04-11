@@ -8,9 +8,9 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
-[![Commands](https://img.shields.io/badge/commands-35-green)](#all-35-commands)
+[![Commands](https://img.shields.io/badge/commands-36-green)](#all-36-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
 [![License](https://img.shields.io/badge/license-MIT-purple)](LICENSE)
 
@@ -318,6 +318,7 @@ Wantan queries wantan-mem directly and surfaces relevant facts from past session
 
 # Improve
 /sprint-review            # Velocity vs committed
+/sprint-close             # Stub scan, carryover decisions, stage next sprint
 /retro                    # Patterns, stop/start/continue
 /debt                     # Tech debt inventory
 ```
@@ -484,6 +485,7 @@ See real examples of Execution-OS in action:
 | `/standup-close` | End-of-day — score commitments |
 | `/sprint-plan` | Sprint planning — velocity baseline, goal setting |
 | `/sprint-review` | Sprint review — velocity vs committed |
+| `/sprint-close` | Sprint closeout — stub scan, carryover decisions, next sprint staging |
 | `/retro` | Retrospective — patterns, stop/start/continue |
 | `/pulse` | Weekly dev metrics pulse |
 
@@ -874,7 +876,7 @@ execution-os-devteam/
 ├── .claude-plugin/           # Marketplace manifest
 ├── plugin/                   # AI LAYER (auto-updates)
 │   ├── agents/        (15)   # The squad
-│   ├── commands/      (33)   # Slash commands
+│   ├── commands/      (36)   # Slash commands
 │   ├── skills/        (55)   # Agent capabilities
 │   ├── rules/         (17)   # System policies
 │   ├── hooks/         (15)   # Automation (incl. SDD gate + state update)
@@ -896,6 +898,22 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v2.2.0
+
+**Sprint closeout hygiene — carryover gaps no longer fall through.**
+
+The reliability gap this closes: when a sprint session ran long (context limit) or deprioritized late-journey features, incomplete stubs and unfinished goals were buried in narrative review docs and never automatically surfaced to the next sprint plan. The orchestrator had no mechanism to detect them — so they silently carried over without a decision.
+
+**How it works:**
+
+- **`/sprint-close` command** — a dedicated sprint closeout ceremony that runs after `/sprint-review` and `/retro`, before the next sprint starts. Steps: Kazuma velocity audit (goal-by-goal DONE/PARTIAL/NOT DONE) → stub scan → per-item carryover decision gate → ledger write → DB insert → next sprint staging.
+- **Stub scanner (Kazuma)** — greps the project for 6 unimplemented code patterns (`throw new Error('not implemented')`, `TODO:`, `FIXME:`, `// stub`, `NotImplementedException`, empty bodies). Skips test files. Groups results by file with line number and enclosing function context.
+- **Carryover decision gate** — blocks sprint close until every incomplete goal and every stub has an explicit decision: `carry_forward`, `deprioritized`, or `split`. No silent carryovers.
+- **`sprint_carryover` DB table** — structured ledger of carryover decisions (story ID, from/to sprint, decision, reason, stub path, agent). Makes carryover rate queryable by Kazuma.
+- **`/sprint-plan` Step 0** — reads `.claude/tasks/sprint-carryover-pending.md` before asking for new goals. Presents carry-forward items, asks which to fold in, then deletes the file. Velocity baseline now flags if last sprint carryover rate exceeded 15%.
+
+**Ceremony order is now:** `/sprint-review` → `/retro` → `/sprint-close` → `/sprint-plan`
 
 ### v2.1.0
 

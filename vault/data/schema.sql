@@ -200,3 +200,20 @@ CREATE TABLE IF NOT EXISTS agent_usage (
   duration_seconds REAL,
   project TEXT
 );
+
+-- Sprint carryover ledger
+-- Records explicit decisions for every incomplete story at sprint close.
+-- decision: 'carry_forward' | 'deprioritized' | 'split'
+CREATE TABLE IF NOT EXISTS sprint_carryover (
+  id INTEGER PRIMARY KEY,
+  story_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  from_sprint TEXT NOT NULL,
+  to_sprint TEXT,
+  decision TEXT NOT NULL CHECK (decision IN ('carry_forward', 'deprioritized', 'split')),
+  reason TEXT,
+  stub_path TEXT,
+  agent TEXT,
+  resolved_at TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
