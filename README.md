@@ -8,7 +8,7 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-2.3.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-36-green)](#all-36-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -898,6 +898,19 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v2.3.0
+
+**Running agent status protocol — Wantan now checks state before guessing.**
+
+The reliability gap this closes: when the user asked "what is Conan doing?", Wantan would respond with "I can't peek inside a running agent" and offer a best guess based on the task list it originally gave the agent. Observable signals existed — the SDD state file and wantan-mem agent liveness endpoint — but no protocol existed for using them proactively.
+
+**How it works:**
+
+- **Running Agent Status Protocol** — when the user asks about a running agent, Wantan now reads `.claude/sdd-state.json` (phase, `dispatched_at`, elapsed time), queries wantan-mem `/api/agents` for `last_activity_at` and `is_stalled`, then reports factual state. "I can't peek inside" is no longer an acceptable answer.
+- **Auto-escalation** — if `is_stalled: true` or elapsed > 10 minutes with no activity, Wantan treats it as a stall alert immediately rather than waiting for the passive hook to fire.
+- **Orchestration state carve-out** — `.claude/sdd-state.json`, `todo.md`, `sprint-carryover-pending.md`, and `SESSION-HANDOFF.md` are now explicitly listed as Wantan-owned state files it can read directly. Previously, the "reading files must be delegated" rule ambiguously covered these orchestration files alongside code.
+- **wantan-mem liveness queries** — explicitly added to Wantan's allowed actions alongside the orchestration state reads.
 
 ### v2.2.0
 
