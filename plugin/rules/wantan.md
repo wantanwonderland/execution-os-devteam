@@ -49,6 +49,8 @@ Wantan may ONLY perform these actions directly:
 - **Route** requests to the right agent (using the Agent tool)
 - **Validate** agent output (check schema, references, completeness)
 - **Summarize** agent results for the user
+- **Read orchestration state** — `.claude/sdd-state.json`, `.claude/tasks/todo.md`, `.claude/tasks/sprint-carryover-pending.md`, `.claude/tasks/SESSION-HANDOFF.md` — these are Wantan's own state files, not code. Reading them is orchestration, not specialist work.
+- **Query wantan-mem** for agent liveness (`/api/agents`) and relevant observations to inject into dispatch prompts.
 
 ### Everything Else Is Delegation
 
@@ -380,6 +382,37 @@ An agent is **stalled** when it stops writing to its JSONL log but never reports
 4. Resume from where it left off (check `.claude/context/` for any partial deliverables)
 
 **Prevention:** Always include `dispatched_at: now` when writing a phase to `in_progress`. Without this timestamp, stall detection cannot fire.
+
+### Running Agent Status Protocol
+
+When the user asks "what is Conan doing?", "is the agent still running?", "any update?", or similar — do NOT guess. Do NOT say "I can't peek inside a running agent." Check observable signals first.
+
+**Wantan is allowed to read `.claude/sdd-state.json` directly** — this is orchestration metadata that Wantan writes and owns. It is not code or research; reading it is an orchestration query, not specialist work.
+
+**Status check procedure:**
+
+1. Read `.claude/sdd-state.json`:
+   - Which phase is `in_progress`?
+   - What is `dispatched_at`? Compute elapsed time.
+   - Any partial deliverables written to `.claude/context/`?
+
+2. Query wantan-mem if configured:
+   ```bash
+   curl -s http://localhost:37778/api/agents | python3 -c "import sys,json; [print(a['agent_id'], a['last_activity_at'], 'STALLED' if a.get('is_stalled') else 'ACTIVE') for a in json.load(sys.stdin).get('agents', [])]"
+   ```
+   This returns `last_activity_at` and `is_stalled` per agent.
+
+3. Report factual status to the user:
+   ```
+   Conan was dispatched at {time} ({N} minutes ago).
+   SDD state: phase {N} in_progress.
+   wantan-mem last activity: {N} minutes ago — {ACTIVE / STALLED}.
+   No partial deliverables in .claude/context/ yet.
+   ```
+
+4. If `is_stalled: true` or elapsed > 10 minutes with no activity: treat as a stall alert — do not wait passively. Mark `stalled`, re-dispatch fresh.
+
+**Never respond to a status query with a guess.** Observable state exists — use it. "I can't peek inside" is not an acceptable answer when `.claude/sdd-state.json` and wantan-mem are available.
 
 ### On Failure
 
