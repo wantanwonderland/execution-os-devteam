@@ -8,7 +8,7 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-2.3.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-36-green)](#all-36-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -898,6 +898,18 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v2.4.0
+
+**Mid-flight messaging protocol — Wantan now uses `SendMessage` instead of inventing limitations.**
+
+The reliability gap this closes: when the user pivoted mid-sprint (e.g. "switch the scaffold target"), Wantan would respond with "I can't interrupt Conan mid-scaffold (no message-in-flight tool)" and queue the change for after the agent finished — wasting the in-flight work. The capability existed (`SendMessage` is already documented in Phase 3.5/4/4.5 fix loops), but no protocol existed for using it on user-driven pivots, only on internal fix loops.
+
+**How it works:**
+
+- **Messaging Running Agents Protocol** — when the user gives a mid-flight directive (pivot, scope change, new constraint), Wantan now identifies the target agent from `.claude/sdd-state.json` and calls `SendMessage` with the new directive. "I can't interrupt mid-scaffold" is no longer an acceptable answer.
+- **Forbidden phrases** — Wantan is explicitly prohibited from saying "no message-in-flight tool", "no way to message a running agent", or "I'll queue a follow-up swap once it finishes". These phrases mark the same hallucination class as v2.3.0's "I can't peek inside" — observable capability dismissed as missing.
+- **Stall-aware fallback** — if the target agent is stalled (per v2.1.0 stall detection), Wantan re-dispatches fresh instead of `SendMessage` (stalled agents won't respond to messages).
 
 ### v2.3.0
 

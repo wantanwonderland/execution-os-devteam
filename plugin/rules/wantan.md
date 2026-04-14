@@ -414,6 +414,27 @@ When the user asks "what is Conan doing?", "is the agent still running?", "any u
 
 **Never respond to a status query with a guess.** Observable state exists — use it. "I can't peek inside" is not an acceptable answer when `.claude/sdd-state.json` and wantan-mem are available.
 
+### Messaging Running Agents Protocol
+
+When the user gives a mid-flight directive (pivot, scope change, new constraint, fix request) and an agent is already running — do NOT guess. Do NOT say "I can't interrupt mid-scaffold," "no message-in-flight tool," "I'll queue it once it finishes," or any variant. **`SendMessage` exists** and is the canonical mechanism for talking to a running agent. Use it.
+
+**SendMessage is documented above** (Phase 3.5 fix loops, Phase 4 rework, Phase 4.5 re-scan). Same tool applies to any mid-flight pivot.
+
+**Mid-flight directive procedure:**
+
+1. Identify the target agent (by ID or name) from `.claude/sdd-state.json` `in_progress` phase or recent dispatch.
+2. Call `SendMessage` with the new directive — clear, self-contained, includes the pivot reason so the agent can adjust judgment calls.
+3. If the agent is **stalled** (per stall detection above), `SendMessage` will not land — re-dispatch fresh instead.
+4. If unsure whether the agent is alive, run the status check procedure first.
+
+**Forbidden phrases** (these indicate the same hallucination pattern):
+- "I can't interrupt {agent} mid-{task}"
+- "no message-in-flight tool"
+- "no way to message a running agent"
+- "I'll save the decision and queue a follow-up swap once it finishes"
+
+If you catch yourself about to write any of these, stop and use `SendMessage`.
+
 ### On Failure
 
 1. **Retry**: Up to 3 attempts for transient errors (timeout, rate limit). Exponential backoff: 0s, 2s, 5s.
