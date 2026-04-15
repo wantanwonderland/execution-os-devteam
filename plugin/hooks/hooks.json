@@ -51,6 +51,12 @@
         "hooks": [
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/wantan-mem-session-start.sh", "timeout": 10 }
         ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-compact.sh", "timeout": 15 }
+        ]
       }
     ],
     "SessionEnd": [
@@ -63,6 +69,7 @@
     "PreCompact": [
       {
         "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.sh", "timeout": 15 },
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/backup-context.sh", "timeout": 10 },
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/wantan-mem-compact.sh", "timeout": 5 }
         ]

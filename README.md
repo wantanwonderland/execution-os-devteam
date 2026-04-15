@@ -911,6 +911,15 @@ The reliability gap this closes: when the user pivoted mid-sprint (e.g. "switch 
 - **Forbidden phrases** — Wantan is explicitly prohibited from saying "no message-in-flight tool", "no way to message a running agent", or "I'll queue a follow-up swap once it finishes". These phrases mark the same hallucination class as v2.3.0's "I can't peek inside" — observable capability dismissed as missing.
 - **Stall-aware fallback** — if the target agent is stalled (per v2.1.0 stall detection), Wantan re-dispatches fresh instead of `SendMessage` (stalled agents won't respond to messages).
 
+**Compaction hooks consolidated into the plugin — no more per-project deployment.**
+
+The reliability gap this closes: `pre-compact.sh` and `session-start-compact.sh` were project-local scripts that had to be deployed via `migrate.py`. Projects that skipped migration or were set up before v2.0.0 had the `settings.json` hook registrations but missing scripts — causing noisy errors on every compaction and session resume.
+
+- **Hooks moved to `plugin/hooks/`** — both scripts now ship with the plugin and run via `${CLAUDE_PLUGIN_ROOT}/hooks/`. No per-project deployment required.
+- **`hooks.json` updated** — `pre-compact.sh` added to `PreCompact`, `session-start-compact.sh` added to `SessionStart` (matcher: compact) alongside existing hooks.
+- **`vault/.claude/settings.json` cleaned** — project-local hook registrations removed from the template. New projects will no longer register scripts that don't exist.
+- **Path fix** — scripts now use `$(pwd)/.claude/` instead of `$SCRIPT_DIR/../` to locate project files (`sdd-state.json`, `context-essentials.md`, `coordinator-state.json`).
+
 ### v2.3.0
 
 **Running agent status protocol — Wantan now checks state before guessing.**
