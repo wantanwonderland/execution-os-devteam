@@ -78,12 +78,10 @@ Each agent has a recommended `model` tier in their definition. To optimize cost,
 ### Haiku Agents (pattern-matching, checklist-driven — 3x cheaper than Sonnet)
 These agents MUST dispatch on Haiku regardless of session model:
 - **Byakuya** — spec validation is checklist matching, not reasoning
-- **L** — documentation writing from established patterns
-- **Kazuma** — sprint metrics are computation, not reasoning
 
 ### Session Model Agents (inherit user's global selection)
 All other agents inherit the session model (Sonnet/Opus as configured):
-- Lelouch, Rohan, Conan, Killua, Diablo, Itachi, Shikamaru, Senku, Wiz, Sai, Megumin, Yomi, Chiyo
+- Lelouch, Rohan, Conan, Killua, Diablo, Itachi, Shikamaru, Senku, Wiz, Sai, Megumin, Yomi, Chiyo, L, Kazuma
 
 ### Override
 The user can override any agent's model tier inline: "dispatch Diablo on Opus for this review" or "use Haiku for everything this session."
