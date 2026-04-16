@@ -8,7 +8,7 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-2.4.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-2.5.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-36-green)](#all-36-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -898,6 +898,16 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v2.5.0
+
+**Model alignment — all agents standardized on Sonnet.**
+
+The reliability gap this closes: `wantan.md` mandated Haiku for L and Kazuma ("MUST dispatch on Haiku regardless of session model"), but both agents' definition files specified `sonnet`. The conflicting rules created ambiguity about which took precedence, and could cause Wantan to under-route documentation and sprint work.
+
+- **L and Kazuma removed from Haiku mandate** — both now inherit the session model (Sonnet) alongside all other execution agents.
+- **Byakuya remains Haiku-only** — spec validation and vault audits are checklist-driven pattern matching, not reasoning. Haiku is appropriate and intentional here.
+- **Single source of truth** — agent definition files and `wantan.md` routing rules are now in sync. Every agent except Byakuya runs on Sonnet.
 
 ### v2.4.0
 

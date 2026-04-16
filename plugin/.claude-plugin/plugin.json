@@ -1,7 +1,7 @@
 {
   "name": "execution-os-devteam",
   "description": "AI-powered dev team OS — 16 anime agents, 35 commands, 56 skills, spec-driven quality gates, wantan-mem memory with fact extraction, benchmark suite, and anti-compaction drift",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "author": {
     "name": "Execution-OS"
   },
