@@ -8,7 +8,7 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-2.6.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-2.7.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-36-green)](#all-36-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -898,6 +898,18 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v2.7.0
+
+**`/start` onboarding fixed — no longer stalls on interactive shell wizard.**
+
+The reliability gap this closes: `/start` called `bash setup-wizard.sh` to personalize the vault, but `setup-wizard.sh` is an interactive script that reads from stdin (`read -r` prompts). Claude Code runs bash non-interactively, so the wizard silently failed. The LLM, receiving no output, fell back to creating a minimal generic CLAUDE.md and stopped — leaving the vault unpersonalized, `business-profile.json` missing, and the plugin uninstalled.
+
+- **Wizard dependency removed** — `/start` no longer calls `setup-wizard.sh` when running inside Claude Code.
+- **LLM-driven collection** — the onboarding command now asks personalization questions directly in conversation (name, company, role, team size, repo, sprint duration) and writes `business-profile.json` and `dashboard/config.json` itself.
+- **Non-interactive sed replacements** — placeholder substitution (`{{COMPANY_NAME}}` etc.) now runs via a single non-interactive `find | sed` pipeline instead of the wizard's interactive loop.
+- **CRITICAL guard added** — explicit instruction at the top of `/start` forbids the LLM from creating a generic CLAUDE.md fallback or skipping any scaffold step.
+- **Plugin install surfaced explicitly** — `/start` now tells the user to run `/plugin marketplace add` + `/plugin install` and waits for confirmation before continuing to onboarding.
 
 ### v2.6.0
 

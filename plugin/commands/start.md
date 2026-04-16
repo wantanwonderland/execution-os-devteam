@@ -2,6 +2,8 @@ First-run onboarding for new Execution-OS users. Guides the first conversation w
 
 **This command requires no integrations — it works immediately after setup.**
 
+> **CRITICAL**: Do NOT create a generic CLAUDE.md yourself. Do NOT skip steps. Do NOT delegate to a shell wizard. Follow the full scaffold flow below exactly. The setup-wizard.sh is for standalone CLI use — ignore it entirely when running inside Claude Code.
+
 ## Step 0: Vault Scaffold Check
 
 Before anything else, check if the vault structure exists. Look for these indicators:
@@ -11,73 +13,165 @@ Before anything else, check if the vault structure exists. Look for these indica
 
 **If ALL of these exist** → skip to Detection below.
 
-**If ANY are missing** → the vault hasn't been scaffolded yet. Clone and set up:
+**If ANY are missing** → the vault hasn't been scaffolded yet. Execute the full setup now:
 
-1. Tell the user: "Welcome! Your vault structure isn't set up yet. Let me clone the template and configure it for you."
+### Setup: Clone vault template
 
-2. Clone the vault template into a `vault/` folder to keep the project root clean:
-   ```bash
-   git clone --depth 1 https://github.com/wantanwonderland/execution-os-devteam.git /tmp/eos
-   cp -rn /tmp/eos/vault/ ./vault/
-   rm -rf /tmp/eos
-   ```
+Tell the user: "Welcome! Your vault structure isn't set up yet. Let me clone the template and configure it for you."
 
-3. Ask the user these questions (one at a time, accept defaults where noted):
-   - **Your name** — how should I address you?
-   - **Company/project name** — what is this vault for?
-   - **Your role** — (default: Engineering Lead)
-   - **Team size** — how many developers? (default: 0)
+Run this bash command to clone the vault template:
+```bash
+git clone --depth 1 https://github.com/wantanwonderland/execution-os-devteam.git /tmp/eos && cp -rn /tmp/eos/vault/ ./vault/ && rm -rf /tmp/eos
+```
 
-4. Run the setup wizard to personalize the vault:
-   ```bash
-   cd vault && bash setup-wizard.sh
-   ```
-   The wizard will ask additional questions (repos, sprint config, integrations). If the user wants to skip, they can press Enter to accept defaults.
+If `vault/` already exists (e.g., user is working inside the repo), skip the clone.
 
-5. After the wizard completes, move files that Claude Code needs at the project root:
-   ```bash
-   # Move CLAUDE.md to project root (Claude Code reads it from here) and remove from vault to avoid duplicates
-   mv vault/CLAUDE.md ./CLAUDE.md
+### Setup: Collect configuration (ask the user — one question at a time)
 
-   # Move .claude/ to project root (Claude Code reads config from here) and remove from vault to avoid duplicates
-   cp -rn vault/.claude/ ./.claude/ 2>/dev/null
-   rm -rf vault/.claude/
-   ```
+Ask these questions directly in conversation. Wait for each answer before asking the next:
 
-6. Update all vault directory references in `CLAUDE.md` to use the `vault/` prefix. Replace every bare vault path with its `vault/`-prefixed version:
-   - `00-identity/` → `vault/00-identity/`
-   - `01-projects/` → `vault/01-projects/`
-   - `02-docs/` → `vault/02-docs/`
-   - `03-research/` → `vault/03-research/`
-   - `04-decisions/` → `vault/04-decisions/`
-   - `05-goals/` → `vault/05-goals/`
-   - `06-ceremonies/` → `vault/06-ceremonies/`
-   - `07-personal/` → `vault/07-personal/`
-   - `08-inbox/` → `vault/08-inbox/`
-   - `09-ops/` → `vault/09-ops/`
-   - `data/` references (e.g., `data/company.db`) → `vault/data/company.db`
-   - `dashboard/` → `vault/dashboard/`
+1. "What's your company or project name?" (required)
+2. "What's your name?" (required)
+3. "What's your role? (default: Engineering Lead)" — use default if they press Enter/skip
+4. "How many developers on your team? (default: 0)" — use default if they press Enter/skip
+5. "What's one repository name your team works on? (e.g., my-app — press Enter to skip)" — optional
+6. "Sprint duration in weeks? (default: 2)" — use default if skipped
 
-   Do NOT prefix paths that already start with `vault/` or `.claude/` (those are already correct).
+Store these answers as: COMPANY_NAME, OWNER_NAME, OWNER_ROLE, TEAM_SIZE, REPO_NAME, SPRINT_WEEKS
 
-7. Remove leftover files from `vault/` that are not vault content (they were part of the repo template, not needed inside the vault):
-   ```bash
-   rm -f vault/README.md vault/INTEGRATIONS.md vault/install.sh vault/setup-wizard.sh
-   ```
+Use today's date as SPRINT_START (YYYY-MM-DD format).
 
-8. If SQLite is available and the wizard didn't already initialize the database:
-   ```bash
-   sqlite3 vault/data/company.db < vault/data/schema.sql
-   ```
+### Setup: Create configuration files
 
-9. Tell the user: "Vault is set up! Now let's get you started."
+**Create `.claude/business-profile.json`** at the project root with the collected values:
+```json
+{
+  "company_name": "<COMPANY_NAME>",
+  "owner_name": "<OWNER_NAME>",
+  "owner_role": "<OWNER_ROLE>",
+  "team_size": <TEAM_SIZE>,
+  "sprint_duration_weeks": <SPRINT_WEEKS>,
+  "sprint_start_date": "<SPRINT_START>",
+  "review_sla_hours": 24,
+  "test_coverage_target": 80,
+  "mttr_target_minutes": 240
+}
+```
 
-10. Continue to **Step 1: Welcome** below (skip the Detection section since this is definitely a first run).
+**Create `vault/dashboard/config.json`** (create the directory first if needed):
+```json
+{
+  "company_name": "<COMPANY_NAME>",
+  "sprint_duration_weeks": <SPRINT_WEEKS>,
+  "review_sla_hours": 24,
+  "deploy_frequency_target": 3,
+  "test_coverage_target": 80,
+  "mttr_target_minutes": 240
+}
+```
+
+If REPO_NAME was provided, **create `vault/01-projects/<repo-slug>.md`**:
+```markdown
+---
+title: "<REPO_NAME>"
+created: <SPRINT_START>
+type: project
+tags: [<repo-slug>]
+status: active
+project: <repo-slug>
+related: []
+---
+
+## Repository
+- URL: https://github.com/your-org/<repo-slug>
+- Default branch: main
+- CI: GitHub Actions
+```
+
+### Setup: Replace placeholders across vault files
+
+Run this bash command to replace all template placeholders (non-interactive sed):
+```bash
+find ./vault \( -name "*.md" -o -name "*.json" -o -name "*.sql" \) -type f \
+  ! -path "*/node_modules/*" ! -name "setup-wizard.sh" ! -name "package-lock.json" | \
+while read -r file; do
+  sed -i '' \
+    -e "s/{{COMPANY_NAME}}/<COMPANY_NAME_ESCAPED>/g" \
+    -e "s/{{OWNER_NAME}}/<OWNER_NAME_ESCAPED>/g" \
+    -e "s/{{OWNER_ROLE}}/<OWNER_ROLE_ESCAPED>/g" \
+    -e "s/{{ASSISTANT_NAME}}/Wantan/g" \
+    -e "s/{{TEAM_SIZE}}/<TEAM_SIZE>/g" \
+    -e "s/{{SPRINT_START_DATE}}/<SPRINT_START>/g" \
+    -e "s/{{SPRINT_DURATION_WEEKS}}/<SPRINT_WEEKS>/g" \
+    -e "s/{{REVIEW_SLA_HOURS}}/24/g" \
+    -e "s/{{TEST_COVERAGE_TARGET}}/80/g" \
+    -e "s/{{MTTR_TARGET_MINUTES}}/240/g" \
+    -e "s/{{PROJECT_FRONTMATTER_LIST}}/<REPO_NAME_OR_ALL>/g" \
+    "$file" 2>/dev/null || true
+done
+```
+
+> Note: On macOS use `sed -i ''`; on Linux use `sed -i`. The command above uses macOS syntax.
+
+### Setup: Move vault config to project root
+
+```bash
+mv vault/CLAUDE.md ./CLAUDE.md
+cp -rn vault/.claude/ ./.claude/ 2>/dev/null || true
+rm -rf vault/.claude/
+```
+
+### Setup: Update path references in CLAUDE.md
+
+Open `CLAUDE.md` and update all bare vault directory references to use the `vault/` prefix. Replace:
+- `00-identity/` → `vault/00-identity/`
+- `01-projects/` → `vault/01-projects/`
+- `02-docs/` → `vault/02-docs/`
+- `03-research/` → `vault/03-research/`
+- `04-decisions/` → `vault/04-decisions/`
+- `05-goals/` → `vault/05-goals/`
+- `06-ceremonies/` → `vault/06-ceremonies/`
+- `07-personal/` → `vault/07-personal/`
+- `08-inbox/` → `vault/08-inbox/`
+- `09-ops/` → `vault/09-ops/`
+- `data/company.db` → `vault/data/company.db`
+- `dashboard/` → `vault/dashboard/`
+
+Do NOT prefix paths that already start with `vault/` or `.claude/`.
+
+### Setup: Remove template-only files from vault/
+
+```bash
+rm -f vault/README.md vault/INTEGRATIONS.md vault/install.sh vault/setup-wizard.sh
+```
+
+### Setup: Initialize the database
+
+```bash
+sqlite3 vault/data/company.db < vault/data/schema.sql 2>/dev/null || echo "SQLite not available — run manually later"
+```
+
+### Setup: Install the plugin
+
+Tell the user:
+
+```
+Almost done! Run these two commands in Claude Code to install your AI squad (Diablo, Killua, Conan, etc.) and enable auto-updates:
+
+  /plugin marketplace add wantanwonderland/execution-os-devteam
+  /plugin install execution-os-devteam
+
+Then restart this session and run /start again to complete onboarding.
+```
+
+Wait for the user to confirm they've run the plugin commands, then continue to **Step 1: Welcome** below.
+
+If the user says they already have the plugin installed or wants to skip, continue immediately.
 
 ## Detection
 
 Check if this is a genuinely new vault:
-1. Count `.md` files in `vault/08-inbox/captures/` (excluding example files)
+1. Count `.md` files in `vault/08-inbox/captures/` (excluding example files named `example-*`)
 2. Count `.md` files in `vault/04-decisions/log/` (excluding templates)
 3. If BOTH counts are 0, this is a first-run — proceed with onboarding
 4. If either count > 0, say: "Looks like you've already started using your vault! Run `/today` for your daily briefing." and stop.
@@ -86,14 +180,14 @@ Check if this is a genuinely new vault:
 
 ### Step 1: Welcome (read and present)
 
-Read `.claude/business-profile.json` to get the company name, business type, and team size. Read `CLAUDE.md` to find the owner name (substituted from `{{OWNER_NAME}}` during setup — look for it in the system description or session management section). The assistant name is also in `CLAUDE.md` (substituted from `{{ASSISTANT_NAME}}`). Read `.claude/team/roster.md` for team member details.
+Read `.claude/business-profile.json` to get the company name and owner name. Read `CLAUDE.md` to confirm setup is complete.
 
 Present:
 
 ```
 Welcome to your Execution-OS vault, {owner_name}.
 
-I'm {assistant_name}, your AI execution assistant for {company_name}.
+I'm Wantan, your AI execution assistant for {company_name}.
 Your vault is set up and ready. Here's what we're going to do in the
 next 10 minutes:
 
@@ -166,7 +260,7 @@ and /pr-queue commands.
 If no `.mcp.json` exists, add:
 ```
 Want to connect GitHub, email, or calendar later?
-See INTEGRATIONS.md — all optional, your vault works great without them.
+See vault/INTEGRATIONS.md — all optional, your vault works great without them.
 ```
 
 ## End of Onboarding
