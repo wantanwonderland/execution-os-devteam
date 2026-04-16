@@ -8,7 +8,7 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-2.5.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-2.6.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-36-green)](#all-36-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -898,6 +898,16 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v2.6.0
+
+**Hook execute permissions fixed — compaction hooks now fire on fresh plugin installs.**
+
+The reliability gap this closes: `pre-compact.sh` and `session-start-compact.sh` were created via the `Write` tool, which does not preserve execute permissions. Both scripts landed as `-rw-r--r--` instead of `-rwxr-xr-x`, causing a `Permission denied` error on every compaction and post-compaction session resume — even though the scripts existed and were correctly registered in `hooks.json`.
+
+- **`chmod +x` applied** to `pre-compact.sh`, `session-start-compact.sh`, and `test-sdd-hooks.sh` (all three were missing the execute bit).
+- All other hooks in `plugin/hooks/` were already `-rwxr-xr-x` and unaffected.
+- Projects loading the plugin fresh will now get working compaction hooks out of the box.
 
 ### v2.5.0
 
