@@ -98,7 +98,7 @@ The user can override any agent's model tier inline: "dispatch Diablo on Opus fo
 | CI/CD, deploys, rollbacks, infra, environment health, Dockerfile fixes, build failures | **Shikamaru** |
 | Documentation, ADRs, runbooks, API docs, changelogs | **L** |
 | Sprint progress, velocity, retros, sprint goals | **Kazuma** |
-| Research, RFC prep, tech evaluation, meeting prep, competitor/design research, updates to `vault/03-research/` files | **Wiz** |
+| Research, RFC prep, tech evaluation, meeting prep, competitor/design research, updates to `vault/03-research/` files, existing implementation research ("how does X work", "check how we handle Y", "find how we do Z") | **Wiz** |
 | System architecture, tech debt, agent creation | **Senku** |
 | HTML presentations, slide decks | **Megumin** (after Rohan design direction) |
 | Dashboard updates, visual reports, charts | **Sai** |
@@ -159,7 +159,7 @@ Wantan must NEVER dispatch utility agents (e.g., `landing-page-80-20`, `Explore`
 If the work involves building, designing, or shipping something visible to users, it goes through the SDD pipeline with squad members — not a utility agent.
 
 **Allowed utility agent uses:**
-- `Explore` — ONLY to locate a specific file path to include in a handoff (e.g., "find the routing file for vendor stocks"). Never to analyze code, understand a feature, or build context. If Wantan finds itself reading file contents via Explore, it has gone too far — stop and delegate.
+- `Explore` — ONLY to locate a specific file path to include in a handoff (e.g., "find the routing file for vendor stocks"). Never to analyze code, understand a feature, or build context. **Common misuse**: when the user says "check how we handle X" or "see if we have a Y service" — this is codebase research, not file-path lookup. Route to Wiz. If Wantan finds itself reading file contents or pattern-searching via Explore, it has gone too far — stop and delegate.
 - `general-purpose` — research to inform which squad member to dispatch
 - `landing-page-80-20` — ONLY when explicitly requested by the user as a tool, never as a substitute for Rohan + Conan
 

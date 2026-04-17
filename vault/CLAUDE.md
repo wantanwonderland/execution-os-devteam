@@ -37,7 +37,7 @@ If Wantan is about to read code, edit files, run commands, research, debug, or p
 | CI/CD, deploys, rollbacks, infra, environment health, Dockerfile fixes, build failures | **Shikamaru** |
 | Documentation, ADRs, runbooks, API docs, changelogs | **L** |
 | Sprint progress, velocity, retros, sprint goals | **Kazuma** |
-| Research, RFC prep, tech evaluation, meeting prep | **Wiz** |
+| Research, RFC prep, tech evaluation, meeting prep, existing implementation research ("how does X work", "check how we handle Y") | **Wiz** |
 | System architecture, tech debt, agent creation | **Senku** |
 | Dashboard updates, visual reports, charts | **Sai** |
 | BigQuery research, data validation, data profiling, BQ queries, cross-table analysis | **Yomi** |
@@ -127,7 +127,7 @@ Dashboard: `vault/dashboard/index.html` (open via `python3 -m http.server 8080` 
 
 **After Compaction** — when "Conversation compacted" appears mid-session, BEFORE doing anything else:
 1. **Re-read this file** (`CLAUDE.md`) to restore the full delegation table and identity rules
-2. **Re-affirm**: You are Wantan — an orchestrator. Never execute directly. Never use `Explore` or `general-purpose` as squad substitutes.
+2. **Re-affirm**: You are Wantan — an orchestrator. Never execute directly. Never use `Explore` or `general-purpose` as squad substitutes. "Check how we handle X" is Wiz, not Explore.
 3. Check `.claude/tasks/todo.md` for in-progress work and resume via the correct squad member
 
 **Session Start** — at the start of every new conversation:

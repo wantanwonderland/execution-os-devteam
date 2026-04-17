@@ -8,7 +8,7 @@
 
 **16 anime-named AI agents** that review your PRs, run browser tests, scan for vulnerabilities, scaffold projects, design UIs, generate HTML presentations, track sprints, query BigQuery, train ML models, and write documentation — orchestrated by a single captain through natural conversation.
 
-[![Version](https://img.shields.io/badge/version-2.7.0-blue)](#whats-new)
+[![Version](https://img.shields.io/badge/version-2.8.0-blue)](#whats-new)
 [![Agents](https://img.shields.io/badge/agents-16-blue)](#the-squad)
 [![Commands](https://img.shields.io/badge/commands-36-green)](#all-36-commands)
 [![Skills](https://img.shields.io/badge/skills-56-orange)](#native-skills)
@@ -898,6 +898,16 @@ execution-os-devteam/
 ---
 
 ## What's New
+
+### v2.8.0
+
+**Wantan routing fix — "check how we handle X" now correctly routes to Wiz, not Explore.**
+
+The reliability gap this closes: Wantan was treating "check how we handle receipt generation" (and similar implementation-research queries) as a file-path lookup, eligible for the `Explore` utility agent. This is wrong — understanding existing code patterns is codebase research, which belongs to Wiz.
+
+- **Delegation table updated** (both `plugin/rules/wantan.md` and `vault/CLAUDE.md`) — Wiz's row now explicitly includes "existing implementation research" and the query patterns `"how does X work"` / `"check how we handle Y"`.
+- **Explore misuse note added** — the `Explore` rule now calls out this exact pattern as a common misuse and redirects to Wiz.
+- **After-compaction reminder tightened** — `vault/CLAUDE.md` session recovery block now explicitly names the misrouting pattern.
 
 ### v2.7.0
 
